@@ -1,0 +1,403 @@
+from pathlib import Path
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import scvelo as scv
+import seaborn as sns
+from bowside.dataset import (
+    PseudotimeDataset,
+    PseudotimeTimepointWrapper,
+    split_by_time_point,
+)
+from matplotlib import colors as mcolors
+from matplotlib import pyplot as plt
+from matplotlib.collections import LineCollection
+from matplotlib.patches import ArrowStyle
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+# Set up plotting parameters
+sc.set_figure_params(vector_friendly=True, dpi_save=600, scanpy=False, fontsize=10)
+scv.set_figure_params(vector_friendly=True, dpi_save=600, fontsize=10)
+plt.style.use("../config/matplotlibrc")
+
+FIG_DIR = Path("../figures/subfigures")
+DATA_DIR = Path("../data")
+INCH_PER_CM = 1 / 2.54
+
+# Color palettes
+# Palette for train/val/test split, Paul Tol's high contrast
+# https://sronpersonalpages.nl/~pault/
+SPLIT_PALETTE = ["#004488", "#DDAA33", "#BB5566"]
+
+
+def make_overview_subfigures():
+    fig_dir = FIG_DIR / "method_overview"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    # Make expression matrices
+    rng = np.random.default_rng(seed=42)
+    dropout_rate = 0.5
+    n_cells = 10
+    n_genes = 15
+    mat_size = (n_cells, n_genes)
+    figsize = (1.2 * INCH_PER_CM, 1.2 * INCH_PER_CM)
+    for i in range(5):
+        exp_mat = rng.random(mat_size) * rng.choice(
+            [0, 1], mat_size, p=[dropout_rate, 1 - dropout_rate]
+        )
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+        sns.heatmap(exp_mat, cmap="Greens", ax=ax, cbar=False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        sns.despine(top=False, right=False)
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.5)
+        fig.savefig(fig_dir / f"exp_mat_{i}")
+        plt.close(fig)
+
+    # Make prior graph
+    adj_mat = np.asarray(
+        [
+            [4, -3, 1, 2, 0, 0, 2],
+            [-3, 4, 0, -1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1, 1, 1],
+            [0, 0, 0, 0, 0, -1, 0],
+            [0, 0, 0, 0, 0, 0, 1.5],
+            [0, 0, 0, 0, 0, 1.5, 0],
+        ]
+    )
+    prior_graph = nx.from_numpy_array(
+        adj_mat,
+        nodelist=[f"g{i + 1:d}" for i in range(adj_mat.shape[0])],  # type: ignore
+        create_using=nx.DiGraph,
+    )
+    # pos = nx.planar_layout(prior)
+    pos = {
+        "g1": [1, 1.5],
+        "g2": [-0.2, 1.5],
+        "g3": [1.8, 0.5],
+        "g4": [0.5, -0.2],
+        "g5": [-0.4, -1.2],
+        "g6": [0.5, -2],
+        "g7": [1.5, -0.8],
+    }
+    pos = {key: np.asarray(lst) for key, lst in pos.items()}
+    figsize = (2 * INCH_PER_CM, 2 * INCH_PER_CM)
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    nx.draw_networkx(
+        prior_graph,
+        pos,
+        with_labels=False,
+        node_color="grey",
+        node_size=10,
+        arrowsize=5,
+        width=0.5,
+        connectionstyle="arc3,rad=0.15",
+        min_source_margin=3,
+        min_target_margin=3,
+        ax=ax,
+    )
+    sns.despine(left=True, bottom=True)
+    fig.savefig(fig_dir / "prior_graph")
+    plt.close(fig)
+
+    # Make learned graph
+    learned_graph: nx.DiGraph = prior_graph.copy()
+    learned_graph.remove_edges_from([("g4", "g5"), ("g4", "g7")])
+    edges = nx.get_edge_attributes(learned_graph, "weight").items()
+    pos_edges, pos_weights = zip(
+        *[(edge, weight) for edge, weight in edges if weight > 0]
+    )
+    neg_edges, neg_weights = zip(
+        *[(edge, weight) for edge, weight in edges if weight < 0]
+    )
+    vmin, vmax = -4, 4
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    node_size = 10
+    arrowsize = 5
+    width = 0.5
+    nx.draw_networkx_nodes(learned_graph, pos, node_color="grey", node_size=10, ax=ax)
+
+    # Activation
+    nx.draw_networkx_edges(
+        learned_graph,
+        pos,
+        node_size=node_size,
+        arrowsize=arrowsize,
+        width=width,
+        connectionstyle="arc3,rad=0.15",
+        min_source_margin=3,
+        min_target_margin=3,
+        edgelist=pos_edges,
+        edge_color=pos_weights,
+        edge_cmap=sns.cm.vlag,
+        edge_vmin=vmin,
+        edge_vmax=vmax,
+        ax=ax,
+    )
+
+    # Inhibition
+    nx.draw_networkx_edges(
+        learned_graph,
+        pos,
+        node_size=node_size,
+        arrowsize=arrowsize,
+        width=width,
+        connectionstyle="arc3,rad=0.15",
+        min_source_margin=3,
+        min_target_margin=3,
+        arrowstyle=ArrowStyle.BracketB(lengthB=0, widthB=0.2),  # type: ignore
+        edgelist=neg_edges,
+        edge_color=neg_weights,
+        edge_cmap=sns.cm.vlag,
+        edge_vmin=vmin,
+        edge_vmax=vmax,
+        ax=ax,
+    )
+
+    sns.despine(left=True, bottom=True)
+    fig.savefig(fig_dir / "learned_graph")
+    plt.close(fig)
+
+    # Data and simulations
+    arrays = np.load("../output/hematopoiesis/bowside_results_overview.npz")
+    figsize = (2.0 * INCH_PER_CM, 2.0 * INCH_PER_CM)
+    for i in range(arrays["data"].shape[-1]):
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+        arr = arrays["data"][:, :, i]
+        sns.violinplot(
+            arr,
+            color="grey",
+            inner=None,
+            linewidth=0.25,
+            cut=0,
+            density_norm="width",
+            ax=ax,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("t", labelpad=1.0, fontsize=5)
+        ax.set_ylabel(f"$g_{i + 1}$", labelpad=0.05, fontsize=5)
+        sns.despine(top=False, right=False)
+        fig.savefig(fig_dir / f"data_g{i + 1}")
+        plt.close(fig)
+
+        fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+        arr = arrays["simulations"][:, :, i]
+        ax.plot(arr, alpha=0.1, c="k", lw=0.25)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("t", labelpad=1.0, fontsize=5)
+        ax.set_ylabel(f"$g_{i + 1}$", labelpad=0.05, fontsize=5)
+        sns.despine(top=False, right=False)
+        fig.savefig(fig_dir / f"simulation_{i + 1}")
+        plt.close(fig)
+
+    # Inferred dynamics
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    for i in range(arrays["simulations"].shape[1]):
+        points = arrays["simulations"][:, i, [0, 1]]
+        segments = np.stack([points[:-1], points[1:]], axis=1).tolist()
+        line = LineCollection(
+            segments,
+            cmap="viridis_r",
+            linewidth=0.25,
+            alpha=0.5,
+        )
+        line.set_array(np.linspace(0.0, 1.0, len(segments)))
+        ax.add_collection(line)
+    cax = inset_axes(ax, width="5%", height="25%", loc="upper right", borderpad=0.8)
+    cbar = fig.colorbar(
+        plt.cm.ScalarMappable(norm=mcolors.Normalize(0.0, 1.0), cmap="viridis_r"),
+        cax=cax,
+    )
+    for spine in cbar.ax.spines.values():
+        spine.set_linewidth(0.25)
+    cbar.set_ticks([0.0, 1.0])
+    cbar.set_ticklabels([r"$t_0$", "T"])
+    cbar.ax.tick_params(length=0, pad=1.0)
+    ax.set_xticks([])
+    ax.set_xlabel("$g_1$", labelpad=2.0, fontsize=5)
+    ax.set_xlim(-0.03, 0.7)
+    ax.set_yticks([])
+    ax.set_ylabel("$g_2$", labelpad=0.5, fontsize=5)
+    ax.set_ylim(-0.03, 1.05)
+    sns.despine(top=False, right=False)
+    fig.savefig(fig_dir / "inferred_dynamics")
+    plt.close(fig)
+
+    # Trajectory inference
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    trajectory_colors = ["#117733", "#AA4499"]
+    for i in range(arrays["trajectories"].shape[0]):
+        cluster_simulations = arrays["trajectory_labels"] == i + 1
+        ax.plot(
+            np.arange(arrays["simulations"].shape[0]),
+            arrays["simulations"][:, cluster_simulations, 0],
+            c=trajectory_colors[i],
+            alpha=0.1,
+            lw=0.25,
+        )
+        ax.plot(
+            np.arange(arrays["simulations"].shape[0]),
+            arrays["trajectories"][i, :, 0],
+            c=trajectory_colors[i],
+            lw=0.5,
+        )
+    ax.set_xticks([])
+    ax.set_xlabel("t", labelpad=2.0, fontsize=5)
+    ax.set_yticks([])
+    ax.set_ylabel("$g_1$", labelpad=0.5, fontsize=5)
+    sns.despine(top=False, right=False)
+    fig.savefig(fig_dir / "trajectory_inference")
+    plt.close(fig)
+
+
+def make_hematopoiesis_subfigures():
+    fig_dir = FIG_DIR / "hematopoiesis"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load AnnData object
+    adata = sc.read_h5ad(DATA_DIR / "hematopoiesis_bowside.h5ad")
+
+    # Plot embeddings
+    figsize = (4.5 * INCH_PER_CM, 5.5 * INCH_PER_CM)
+    fig, axs = plt.subplots(
+        2,
+        2,
+        figsize=figsize,
+        width_ratios=[5, 2],
+        layout="constrained",
+    )
+    embeddings_df = adata.obs[["cell_type", "palantir_pseudotime"]]
+    embeddings_df[["FA1", "FA2"]] = np.asarray(adata.obsm["X_draw_graph_fa"])
+    sns.scatterplot(
+        embeddings_df,
+        x="FA1",
+        y="FA2",
+        hue="cell_type",
+        palette=adata.uns["cell_type_colors"],
+        linewidth=0,
+        s=2,
+        rasterized=True,
+        ax=axs[0, 0],
+    )
+    handles, labels = axs[0, 0].get_legend_handles_labels()
+    labels = [lab.replace("_", " ") for lab in labels]
+    axs[0, 0].get_legend().remove()
+    axs[0, 1].legend(
+        handles,
+        labels,
+        title="cell type",
+        alignment="left",
+        loc="center",
+        markerscale=2,
+    )
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=1.0)
+    )
+    sns.scatterplot(
+        embeddings_df,
+        x="FA1",
+        y="FA2",
+        hue="palantir_pseudotime",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=2,
+        rasterized=True,
+        ax=axs[1, 0],
+    )
+    axs[1, 0].get_legend().remove()
+    cax = inset_axes(
+        axs[1, 1], width="15%", height="75%", loc="center left", borderpad=0
+    )
+    plt.colorbar(
+        sm,
+        cax=cax,
+        label="pseudotime",
+    )
+    for ax in axs.flat:
+        ax.set_aspect(1.0)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    sns.despine(fig, left=True, bottom=True)
+    fig.savefig(fig_dir / "embeddings")
+    plt.close(fig)
+
+    # Plot data and simulations for selected genes
+    dataset = PseudotimeDataset(
+        adata,
+        layer="MAGIC_imputed_data",
+        mask_var="hematopoiesis_gene",
+        pseudotime_key="palantir_pseudotime",
+    )
+    train_idx, val_idx, test_idx = split_by_time_point(  # type: ignore
+        dataset, train_proportion=0.7, validation_proportion=0.1, test_proportion=0.2
+    )
+    train_set = PseudotimeTimepointWrapper(dataset, train_idx)
+    val_set = PseudotimeTimepointWrapper(dataset, val_idx)
+    test_set = PseudotimeTimepointWrapper(dataset, test_idx)
+    gene_names = pd.Index(["Cebpa", "Cebpe", "Gata1", "Spi1"])
+    gene_idx = dataset.gene_names.get_indexer(gene_names)
+    figsize = (5.5 * INCH_PER_CM, 5.5 * INCH_PER_CM)
+    fig, axs = plt.subplots(2, 2, figsize=figsize, sharex=True, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx, axs.flat):
+        for i, (set_name, data_subset) in enumerate(
+            zip(["train", "validation", "test"], [train_set, val_set, test_set])
+        ):
+            y = data_subset[:].cpu()
+            ax.scatter(
+                data_subset.time_points.cpu().repeat(y.shape[0], 1),
+                y[:, :, idx],
+                color=SPLIT_PALETTE[i],
+                linewidth=0,
+                s=3,
+                alpha=alpha,
+                label=set_name,
+                rasterized=True,
+            )
+        ax.plot(
+            dataset.time_points.cpu(),
+            adata.uns["bowside"]["simulations"][:, :, idx],
+            color="k",
+            alpha=alpha,
+            linewidth=0.5,
+            label="simulations",
+            rasterized=True,
+        )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+            ),
+            plt.Line2D([0, 1], [1, 1], linewidth=0.7, c="k"),  # type: ignore
+        ],
+        labels=["train", "validation", "test", "simulation"],
+        loc="outside lower center",
+        ncol=4,
+        columnspacing=1.0,
+    )
+    fig.savefig(fig_dir / "data_and_simulations")
+    plt.close(fig)
+
+
+if __name__ == "__main__":
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    make_overview_subfigures()
+    make_hematopoiesis_subfigures()
