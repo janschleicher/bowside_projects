@@ -43,7 +43,7 @@ lines.linewidth: 1               # line width in points
 ## on font properties.
 
 font.family:  Arial
-font.size:    8.0
+font.size:    7.0
 
 
 ## ***************************************************************************
@@ -62,7 +62,7 @@ mathtext.default: regular
 ## default font sizes for tick labels, and so on.  See
 ## https://matplotlib.org/stable/api/axes_api.html#module-matplotlib.axes
 axes.linewidth:     0.7     # edge line width
-axes.labelsize:     8.0  # font size of the x and y labels
+axes.labelsize:     5.0  # font size of the x and y labels
 
 axes.spines.left:   True
 axes.spines.bottom: True
@@ -79,28 +79,28 @@ axes.spines.right:  False
 xtick.major.width:   0.7     # major tick width in points
 xtick.minor.width:   0.5     # minor tick width in points
 #xtick.labelcolor:    inherit # color of the tick labels or inherit from xtick.color
-xtick.labelsize:     6.0  # font size of the tick labels
+xtick.labelsize:     5.0  # font size of the tick labels
 
 #ytick.major.size:    3.5     # major tick size in points
 #ytick.minor.size:    2       # minor tick size in points
 ytick.major.width:   0.8     # major tick width in points
 ytick.minor.width:   0.6     # minor tick width in points
-ytick.labelsize:     6.0  # font size of the tick labels
+ytick.labelsize:     5.0  # font size of the tick labels
 
 
 ## ***************************************************************************
 ## * LEGEND                                                                  *
 ## ***************************************************************************
 legend.frameon:       False     # if True, draw the legend on a background patch
-legend.fontsize:      8.0
-#legend.title_fontsize: None    # None sets to the same as the default axes.
+legend.fontsize:      5.0
+legend.title_fontsize: 5.0    # None sets to the same as the default axes.
 
 
 ## ***************************************************************************
 ## * FIGURE                                                                  *
 ## ***************************************************************************
 ## See https://matplotlib.org/stable/api/figure_api.html#matplotlib.figure.Figure
-figure.titlesize:   10.0     # size of the figure title (``Figure.suptitle()``)
+figure.titlesize:   7.0     # size of the figure title (``Figure.suptitle()``)
 #figure.dpi:         100       # figure dots per inch
 
 
