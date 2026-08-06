@@ -74,16 +74,18 @@ axes.spines.right:  False
 ## * TICKS                                                                   *
 ## ***************************************************************************
 ## See https://matplotlib.org/stable/api/axis_api.html#matplotlib.axis.Tick
-#xtick.major.size:    3.5     # major tick size in points
-#xtick.minor.size:    2       # minor tick size in points
+xtick.major.size:    2     # major tick size in points
+xtick.minor.size:    1       # minor tick size in points
 xtick.major.width:   0.7     # major tick width in points
+xtick.major.pad:     1.0
 xtick.minor.width:   0.5     # minor tick width in points
 #xtick.labelcolor:    inherit # color of the tick labels or inherit from xtick.color
 xtick.labelsize:     5.0  # font size of the tick labels
 
-#ytick.major.size:    3.5     # major tick size in points
-#ytick.minor.size:    2       # minor tick size in points
+ytick.major.size:    2     # major tick size in points
+ytick.minor.size:    1       # minor tick size in points
 ytick.major.width:   0.8     # major tick width in points
+ytick.major.pad:     1.0
 ytick.minor.width:   0.6     # minor tick width in points
 ytick.labelsize:     5.0  # font size of the tick labels
 
@@ -131,3 +133,10 @@ savefig.transparent: False     # whether figures are saved with a transparent
                          #     None: Assume fonts are installed on the
                          #           machine where the SVG will be viewed.
 #svg.hashsalt: None      # If not None, use this string as hash salt instead of uuid4
+
+### PDF backend params
+#pdf.compression:    6  # integer from 0 to 9
+                        # 0 disables compression (good for debugging)
+pdf.fonttype:       42  # Output Type 3 (Type3) or Type 42 (TrueType)
+#pdf.use14corefonts: False
+#pdf.inheritcolor:   False

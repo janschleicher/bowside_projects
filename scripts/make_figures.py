@@ -2,14 +2,14 @@ from pathlib import Path
 
 import networkx as nx
 import numpy as np
-import pandas as pd
+import pandas as pd  # noqa
 import scanpy as sc
 import scvelo as scv
 import seaborn as sns
 from bowside.dataset import (
-    PseudotimeDataset,
-    PseudotimeTimepointWrapper,
-    split_by_time_point,
+    PseudotimeDataset,  # noqa
+    PseudotimeTimepointWrapper,  # noqa
+    split_by_time_point,  # noqa
 )
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
@@ -18,8 +18,8 @@ from matplotlib.patches import ArrowStyle
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # Set up plotting parameters
-sc.set_figure_params(vector_friendly=True, dpi_save=600, scanpy=False, fontsize=10)
-scv.set_figure_params(vector_friendly=True, dpi_save=600, fontsize=10)
+sc.set_figure_params(vector_friendly=True, dpi_save=600, scanpy=False, fontsize=7)
+scv.set_figure_params(vector_friendly=True, dpi_save=600, fontsize=7)
 plt.style.use("../config/matplotlibrc")
 
 FIG_DIR = Path("../figures/subfigures")
@@ -30,6 +30,9 @@ INCH_PER_CM = 1 / 2.54
 # Palette for train/val/test split, Paul Tol's high contrast
 # https://sronpersonalpages.nl/~pault/
 SPLIT_PALETTE = ["#004488", "#DDAA33", "#BB5566"]
+
+# Palette for trajectories: from Paul Tol's muted
+TRAJECTORY_PALETTE = ["#117733", "#AA4499"]
 
 
 def make_overview_subfigures():
@@ -209,7 +212,7 @@ def make_overview_subfigures():
         )
         line.set_array(np.linspace(0.0, 1.0, len(segments)))
         ax.add_collection(line)
-    cax = inset_axes(ax, width="5%", height="25%", loc="upper right", borderpad=0.8)
+    cax = inset_axes(ax, width="5%", height="25%", loc="upper right", borderpad=1.5)
     cbar = fig.colorbar(
         plt.cm.ScalarMappable(norm=mcolors.Normalize(0.0, 1.0), cmap="viridis_r"),
         cax=cax,
@@ -231,20 +234,19 @@ def make_overview_subfigures():
 
     # Trajectory inference
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
-    trajectory_colors = ["#117733", "#AA4499"]
     for i in range(arrays["trajectories"].shape[0]):
         cluster_simulations = arrays["trajectory_labels"] == i + 1
         ax.plot(
             np.arange(arrays["simulations"].shape[0]),
             arrays["simulations"][:, cluster_simulations, 0],
-            c=trajectory_colors[i],
+            c=TRAJECTORY_PALETTE[i],
             alpha=0.1,
             lw=0.25,
         )
         ax.plot(
             np.arange(arrays["simulations"].shape[0]),
             arrays["trajectories"][i, :, 0],
-            c=trajectory_colors[i],
+            c=TRAJECTORY_PALETTE[i],
             lw=0.5,
         )
     ax.set_xticks([])
@@ -262,6 +264,14 @@ def make_hematopoiesis_subfigures():
 
     # Load AnnData object
     adata = sc.read_h5ad(DATA_DIR / "hematopoiesis_bowside.h5ad")
+    embeddings_df = sc.get.obs_df(
+        adata,
+        keys=["cell_type", "palantir_pseudotime", "bowside_fate_entropy"],
+        obsm_keys=[("X_draw_graph_fa", 0), ("X_draw_graph_fa", 1)],
+    ).rename(columns={"X_draw_graph_fa-0": "FA1", "X_draw_graph_fa-1": "FA2"})
+    embeddings_df[["bowside_erythroid_probability", "bowside_myeloid_probability"]] = (
+        adata.obsm["bowside_fate_probabilities"].copy()
+    )
 
     # Plot embeddings
     figsize = (4.5 * INCH_PER_CM, 5.5 * INCH_PER_CM)
@@ -272,8 +282,6 @@ def make_hematopoiesis_subfigures():
         width_ratios=[5, 2],
         layout="constrained",
     )
-    embeddings_df = adata.obs[["cell_type", "palantir_pseudotime"]]
-    embeddings_df[["FA1", "FA2"]] = np.asarray(adata.obsm["X_draw_graph_fa"])
     sns.scatterplot(
         embeddings_df,
         x="FA1",
@@ -386,15 +394,157 @@ def make_hematopoiesis_subfigures():
             plt.Line2D(  # type: ignore
                 [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
             ),
-            plt.Line2D([0, 1], [1, 1], linewidth=0.7, c="k"),  # type: ignore
+            plt.Line2D([0, 1], [1, 1], linewidth=1.0, c="k"),  # type: ignore
         ],
         labels=["train", "validation", "test", "simulation"],
         loc="outside lower center",
         ncol=4,
         columnspacing=1.0,
     )
+    fig.get_layout_engine().set(w_pad=0.03, wspace=0.0)  # type: ignore
+    fig.align_ylabels()
     fig.savefig(fig_dir / "data_and_simulations")
     plt.close(fig)
+
+    # Trajectory inference
+    figsize = (7 * INCH_PER_CM, 2.5 * INCH_PER_CM)
+    fig, axs = plt.subplots(1, 4, figsize=figsize, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx, axs.flat):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = (
+                adata.uns["bowside"]["trajectory_inference_clusters"] == i + 1
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations"][:, cluster_simulations, idx],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [0, 1],
+                [1, 1],
+                linewidth=1.0,
+                c=TRAJECTORY_PALETTE[0],
+            ),
+            plt.Line2D(  # type: ignore
+                [0, 1],
+                [1, 1],
+                linewidth=1.0,
+                c=TRAJECTORY_PALETTE[1],
+            ),
+        ],
+        labels=["erythroid", "myeloid"],
+        loc="outside lower center",
+        ncol=2,
+        columnspacing=1.0,
+        borderpad=0.0,
+    )
+    fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
+    fig.savefig(fig_dir / "trajectory_inference_genes")
+
+    fig, axs = plt.subplots(1, 3, figsize=figsize, layout="constrained")
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=1.0)
+    )
+
+    sns.scatterplot(
+        embeddings_df,
+        x="FA1",
+        y="FA2",
+        hue="bowside_erythroid_probability",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=2,
+        rasterized=True,
+        ax=axs[0],
+    )
+    axs[0].set_title("erythroid fate")
+    cax = inset_axes(
+        axs[0],
+        width="100%",
+        height="100%",
+        loc="lower right",
+        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
+        bbox_transform=axs[0].transAxes,
+        borderpad=2.0,
+    )
+    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
+    cbar.set_label("prob.", labelpad=0)
+
+    sns.scatterplot(
+        embeddings_df,
+        x="FA1",
+        y="FA2",
+        hue="bowside_myeloid_probability",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=2,
+        rasterized=True,
+        ax=axs[1],
+    )
+    axs[1].set_title("myeloid fate")
+    cax = inset_axes(
+        axs[1],
+        width="100%",
+        height="100%",
+        loc="lower right",
+        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
+        bbox_transform=axs[1].transAxes,
+        borderpad=2.0,
+    )
+    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
+    cbar.set_label("prob.", labelpad=0)
+
+    sns.scatterplot(
+        embeddings_df,
+        x="FA1",
+        y="FA2",
+        hue="bowside_fate_entropy",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=2,
+        rasterized=True,
+        ax=axs[2],
+    )
+    axs[2].set_title("fate entropy")
+    cax = inset_axes(
+        axs[2],
+        width="100%",
+        height="100%",
+        loc="lower right",
+        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
+        bbox_transform=axs[2].transAxes,
+        borderpad=2.0,
+    )
+    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
+    cbar.set_label("entropy", labelpad=0)
+
+    for ax in axs:
+        ax.get_legend().remove()
+        ax.set_aspect(1.0)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+    sns.despine(left=True, bottom=True)
+    fig.savefig(fig_dir / "trajectory_inference_embedding")
 
 
 if __name__ == "__main__":
