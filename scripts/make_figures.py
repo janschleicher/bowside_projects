@@ -456,10 +456,12 @@ def make_hematopoiesis_subfigures():
     fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
     fig.savefig(fig_dir / "trajectory_inference_genes")
 
+    figsize = (7 * INCH_PER_CM, 3 * INCH_PER_CM)
     fig, axs = plt.subplots(1, 3, figsize=figsize, layout="constrained")
     sm = plt.cm.ScalarMappable(
         cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=1.0)
     )
+    cbar_kwargs = {"location": "bottom", "shrink": 0.4, "aspect": 12, "pad": 0.0}
 
     sns.scatterplot(
         embeddings_df,
@@ -474,17 +476,9 @@ def make_hematopoiesis_subfigures():
         ax=axs[0],
     )
     axs[0].set_title("erythroid fate")
-    cax = inset_axes(
-        axs[0],
-        width="100%",
-        height="100%",
-        loc="lower right",
-        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
-        bbox_transform=axs[0].transAxes,
-        borderpad=2.0,
-    )
-    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
-    cbar.set_label("prob.", labelpad=0)
+    cbar = plt.colorbar(sm, ax=axs[0], **cbar_kwargs)
+    cbar.set_label("probability", labelpad=0)
+    cbar.set_ticks([0, 0.5, 1.0])
 
     sns.scatterplot(
         embeddings_df,
@@ -499,18 +493,13 @@ def make_hematopoiesis_subfigures():
         ax=axs[1],
     )
     axs[1].set_title("myeloid fate")
-    cax = inset_axes(
-        axs[1],
-        width="100%",
-        height="100%",
-        loc="lower right",
-        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
-        bbox_transform=axs[1].transAxes,
-        borderpad=2.0,
-    )
-    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
-    cbar.set_label("prob.", labelpad=0)
+    cbar = plt.colorbar(sm, ax=axs[1], **cbar_kwargs)
+    cbar.set_label("probability", labelpad=0)
+    cbar.set_ticks([0, 0.5, 1.0])
 
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=-np.log(0.5))
+    )
     sns.scatterplot(
         embeddings_df,
         x="FA1",
@@ -524,17 +513,9 @@ def make_hematopoiesis_subfigures():
         ax=axs[2],
     )
     axs[2].set_title("fate entropy")
-    cax = inset_axes(
-        axs[2],
-        width="100%",
-        height="100%",
-        loc="lower right",
-        bbox_to_anchor=(0.9, 0.05, 0.3, 0.05),
-        bbox_transform=axs[2].transAxes,
-        borderpad=2.0,
-    )
-    cbar = plt.colorbar(sm, cax=cax, orientation="horizontal")
+    cbar = plt.colorbar(sm, ax=axs[2], **cbar_kwargs)
     cbar.set_label("entropy", labelpad=0)
+    cbar.set_ticks([0.0, -np.log(0.5)], labels=[f"{0:.1f}", f"{-np.log(0.5):.2f}"])
 
     for ax in axs:
         ax.get_legend().remove()
