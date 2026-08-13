@@ -1,15 +1,16 @@
 from pathlib import Path
 
+import iplotx as ipx
 import networkx as nx
 import numpy as np
-import pandas as pd  # noqa
+import pandas as pd
 import scanpy as sc
 import scvelo as scv
 import seaborn as sns
 from bowside.dataset import (
-    PseudotimeDataset,  # noqa
-    PseudotimeTimepointWrapper,  # noqa
-    split_by_time_point,  # noqa
+    PseudotimeDataset,
+    PseudotimeTimepointWrapper,
+    split_by_time_point,
 )
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
@@ -526,6 +527,197 @@ def make_hematopoiesis_subfigures():
         ax.set_ylabel("")
     sns.despine(left=True, bottom=True)
     fig.savefig(fig_dir / "trajectory_inference_embedding")
+
+    # Plot adjacency matrix
+    adj_mat = pd.read_csv(
+        "../output/hematopoiesis/hematopoiesis_adj_bowside.csv", index_col=0
+    )
+    grn_bowside = nx.from_pandas_adjacency(adj_mat, create_using=nx.DiGraph)
+
+    adj_tflink = pd.read_csv(
+        "../output/hematopoiesis/hematopoiesis_adj_list_tflink.csv"
+    )
+    grn_tflink = nx.from_pandas_edgelist(
+        adj_tflink,
+        source="source",
+        target="target",
+        edge_attr=True,
+        create_using=nx.DiGraph,
+    )
+
+    # Remove edges below cutoff
+    n_edges = 25
+    sorted_weights = np.sort(np.abs(adj_mat.values), axis=None)
+    edge_cutoff = sorted_weights[-n_edges]
+    edges_to_remove = [
+        (u, v)
+        for u, v, d in grn_bowside.edges(data=True)
+        if abs(d["weight"]) < edge_cutoff
+    ]
+    grn_bowside.remove_edges_from(edges_to_remove)
+    pos = nx.circular_layout(grn_bowside)
+
+    # Setup colormap
+    vmax = max(abs(adj_mat.values.min()), adj_mat.values.max())
+    norm = mcolors.Normalize(vmin=-vmax, vmax=vmax)
+    cmap = sns.cm.vlag
+
+    # Style edges
+    edge_linestyles = {}
+    edge_colors = {}
+    edge_arrowmarkers = []
+
+    for u, v, d in grn_bowside.edges(data=True):
+        w = d["weight"]
+
+        # Style depending on presence in TFLink database
+        if grn_tflink.has_edge(u, v):
+            small_scale = grn_tflink.get_edge_data(u, v)["small_scale"]
+            if small_scale == "Yes":
+                edge_linestyles[(u, v)] = "-"
+            else:
+                edge_linestyles[(u, v)] = "--"
+        else:
+            edge_linestyles[(u, v)] = ":"
+
+        # Map weight to seaborn colormap
+        edge_colors[(u, v)] = cmap(norm(w))
+
+        # Different arrows for activation and inhibition
+        if w > 0:
+            edge_arrowmarkers.append(")>")  # standard arrow
+        else:
+            edge_arrowmarkers.append("|")  # blunt arrow
+
+    # Plot the graph
+    fig, ax = plt.subplots(
+        figsize=(5 * INCH_PER_CM, 5.5 * INCH_PER_CM), layout="constrained"
+    )
+    ipx.network(
+        grn_bowside,
+        pos,  # type: ignore
+        node_labels=True,
+        style={
+            "node": {
+                "size": 16,
+                "facecolor": "lightgrey",
+                "label_color": "k",
+                "label_fontsize": 5,
+                "label_fontfamily": "Arial",
+            },
+            "edge": {
+                "shrink": 1,
+                "linewidth": 1.0,
+                "linestyle": edge_linestyles,
+                "arc": True,
+                "tension": 0.1,
+                "looptension": 3,
+                "color": edge_colors,
+                "arrow_marker": edge_arrowmarkers,
+                "arrow_width": 5,
+                "arrow_height": 5,
+            },
+        },
+        aspect=1,
+        ax=ax,
+    )
+    cax = inset_axes(ax, "3%", "15%", "lower right", borderpad=1.5)
+    cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)
+    cbar.set_label("weight", labelpad=1.0)
+    handles = [
+        plt.Line2D([], [], linewidth=1.0, linestyle=":", c="k"),  # type: ignore
+        plt.Line2D([], [], linewidth=1.0, linestyle="--", c="k"),  # type: ignore
+        plt.Line2D([], [], linewidth=1.0, linestyle="-", c="k"),  # type: ignore
+    ]
+    labels = ["none", "large-scale", "small-scale"]
+    ax.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.05),
+        handlelength=2,
+        columnspacing=1.0,
+        ncol=3,
+        title="TFLink evidence",
+    )
+
+    sns.despine(fig, left=True, bottom=True)
+    fig.savefig(fig_dir / "bowside_grn_graph")
+    plt.close()
+
+    # Plot bistable switch
+    fig, axs = plt.subplots(
+        1,
+        2,
+        figsize=(5 * INCH_PER_CM, 1 * INCH_PER_CM),
+        layout="constrained",
+        width_ratios=[30, 1],
+    )
+    bistable_switch = grn_bowside.subgraph(["Gata1", "Spi1"])
+    edge_arrowmarkers = []
+    for _, _, d in bistable_switch.edges(data=True):
+        # Different arrows for activation and inhibition
+        if d["weight"] > 0:
+            edge_arrowmarkers.append(")>")  # standard arrow
+        else:
+            edge_arrowmarkers.append("|")  # blunt arrow
+
+    ipx.network(
+        bistable_switch,
+        {"Gata1": [-0.3, 0.0], "Spi1": [0.3, 0.0]},
+        node_labels=True,
+        style={
+            "node": {
+                "size": 16,
+                "facecolor": "lightgrey",
+                "label_color": "k",
+                "label_fontsize": 5,
+                "label_fontfamily": "Arial",
+            },
+            "edge": {
+                "shrink": 1,
+                "linewidth": 1.0,
+                "arc": True,
+                "tension": 0.1,
+                "looptension": 3,
+                "color": edge_colors,
+                "arrow_marker": edge_arrowmarkers,
+                "arrow_width": 5,
+                "arrow_height": 5,
+            },
+        },
+        ax=axs[0],
+    )
+    cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=axs[1])
+    cbar.set_label("weight", labelpad=1.0)
+    fig.savefig(fig_dir / "bistable_switch")
+    plt.close()
+
+    # Plot adjacency matrix
+    fig, ax = plt.subplots(
+        figsize=(5 * INCH_PER_CM, 4.5 * INCH_PER_CM), layout="constrained"
+    )
+    annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mat.values)
+    annot[(annot == "0.0") | (annot == "-0.0")] = ""
+    hm = sns.heatmap(
+        adj_mat,
+        cmap="vlag",
+        center=0,
+        cbar_kws={
+            "shrink": 0.4,
+            "aspect": 10,
+            "ticks": [-6, -3, 0, 3],
+        },
+        annot=annot,
+        annot_kws={"fontsize": 5},
+        fmt="s",
+        square=True,
+        ax=ax,
+    )
+    hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
+    sns.despine(fig, top=False, right=False)
+    fig.savefig(fig_dir / "bowside_adj_mat")
+    plt.close()
 
 
 if __name__ == "__main__":
