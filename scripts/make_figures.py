@@ -15,7 +15,6 @@ from bowside.dataset import (
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
 from matplotlib.collections import LineCollection
-from matplotlib.patches import ArrowStyle
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 # Set up plotting parameters
@@ -78,7 +77,6 @@ def make_overview_subfigures():
         nodelist=[f"g{i + 1:d}" for i in range(adj_mat.shape[0])],  # type: ignore
         create_using=nx.DiGraph,
     )
-    # pos = nx.planar_layout(prior)
     pos = {
         "g1": [1, 1.5],
         "g2": [-0.2, 1.5],
@@ -90,18 +88,28 @@ def make_overview_subfigures():
     }
     pos = {key: np.asarray(lst) for key, lst in pos.items()}
     figsize = (2 * INCH_PER_CM, 2 * INCH_PER_CM)
+
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
-    nx.draw_networkx(
+    ipx.network(
         prior_graph,
-        pos,
-        with_labels=False,
-        node_color="grey",
-        node_size=10,
-        arrowsize=5,
-        width=0.5,
-        connectionstyle="arc3,rad=0.15",
-        min_source_margin=3,
-        min_target_margin=3,
+        pos,  # type: ignore
+        node_labels=False,
+        style={
+            "node": {
+                "size": 4,
+                "facecolor": "lightgrey",
+            },
+            "edge": {
+                "shrink": 1,
+                "linewidth": 0.5,
+                "arc": True,
+                "tension": 0.15,
+                "looptension": 5,
+                "arrow_marker": ")>",
+                "arrow_width": 1.5,
+                "arrow_height": 1.5,
+            },
+        },
         ax=ax,
     )
     sns.despine(left=True, bottom=True)
@@ -111,59 +119,101 @@ def make_overview_subfigures():
     # Make learned graph
     learned_graph: nx.DiGraph = prior_graph.copy()
     learned_graph.remove_edges_from([("g4", "g5"), ("g4", "g7")])
-    edges = nx.get_edge_attributes(learned_graph, "weight").items()
-    pos_edges, pos_weights = zip(
-        *[(edge, weight) for edge, weight in edges if weight > 0]
-    )
-    neg_edges, neg_weights = zip(
-        *[(edge, weight) for edge, weight in edges if weight < 0]
-    )
-    vmin, vmax = -4, 4
-    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
-    node_size = 10
-    arrowsize = 5
-    width = 0.5
+
+    # Setup colormap
+    norm = mcolors.Normalize(vmin=-4, vmax=4)
+    cmap = sns.cm.vlag
     nx.draw_networkx_nodes(learned_graph, pos, node_color="grey", node_size=10, ax=ax)
 
-    # Activation
-    nx.draw_networkx_edges(
-        learned_graph,
-        pos,
-        node_size=node_size,
-        arrowsize=arrowsize,
-        width=width,
-        connectionstyle="arc3,rad=0.15",
-        min_source_margin=3,
-        min_target_margin=3,
-        edgelist=pos_edges,
-        edge_color=pos_weights,
-        edge_cmap=sns.cm.vlag,
-        edge_vmin=vmin,
-        edge_vmax=vmax,
-        ax=ax,
-    )
+    # Style edges
+    edge_colors = {}
+    edge_arrowmarkers = []
+    for u, v, d in learned_graph.edges(data=True):
+        w = d["weight"]
 
-    # Inhibition
-    nx.draw_networkx_edges(
+        # Map weight to seaborn colormap
+        edge_colors[(u, v)] = cmap(norm(w))
+
+        # Different arrows for activation and inhibition
+        if w > 0:
+            edge_arrowmarkers.append(")>")  # standard arrow
+        else:
+            edge_arrowmarkers.append("|")  # blunt arrow
+
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    ipx.network(
         learned_graph,
-        pos,
-        node_size=node_size,
-        arrowsize=arrowsize,
-        width=width,
-        connectionstyle="arc3,rad=0.15",
-        min_source_margin=3,
-        min_target_margin=3,
-        arrowstyle=ArrowStyle.BracketB(lengthB=0, widthB=0.2),  # type: ignore
-        edgelist=neg_edges,
-        edge_color=neg_weights,
-        edge_cmap=sns.cm.vlag,
-        edge_vmin=vmin,
-        edge_vmax=vmax,
+        pos,  # type: ignore
+        node_labels=False,
+        style={
+            "node": {
+                "size": 4,
+                "facecolor": "lightgrey",
+            },
+            "edge": {
+                "shrink": 1,
+                "linewidth": 0.5,
+                "arc": True,
+                "tension": 0.15,
+                "looptension": 5,
+                "color": edge_colors,
+                "arrow_marker": edge_arrowmarkers,
+                "arrow_width": 1.5,
+                "arrow_height": 1.5,
+            },
+        },
         ax=ax,
     )
 
     sns.despine(left=True, bottom=True)
     fig.savefig(fig_dir / "learned_graph")
+    plt.close(fig)
+
+    # Make KO graph
+    ko_graph: nx.DiGraph = learned_graph.copy()
+    edges_to_remove = []
+    edge_arrowmarkers = []
+    for u, v, d in ko_graph.edges(data=True):
+        if u == "g1":
+            edges_to_remove.append((u, v))
+        else:
+            # Different arrows for activation and inhibition
+            if d["weight"] > 0:
+                edge_arrowmarkers.append(")>")  # standard arrow
+            else:
+                edge_arrowmarkers.append("|")  # blunt arrow
+    ko_graph.remove_edges_from(edges_to_remove)
+    node_colors = {
+        node: "lightgrey" if node != "g1" else "k" for node in ko_graph.nodes()
+    }
+
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    ipx.network(
+        ko_graph,
+        pos,  # type: ignore
+        node_labels=False,
+        style={
+            "node": {
+                "size": 4,
+                "facecolor": node_colors,
+            },
+            "edge": {
+                "shrink": 1,
+                "linewidth": 0.5,
+                "arc": True,
+                "tension": 0.15,
+                "looptension": 5,
+                "color": edge_colors,
+                "arrow_marker": edge_arrowmarkers,
+                "arrow_width": 1.5,
+                "arrow_height": 1.5,
+            },
+        },
+        ax=ax,
+    )
+
+    sns.despine(left=True, bottom=True)
+    fig.savefig(fig_dir / "ko_graph")
     plt.close(fig)
 
     # Data and simulations
