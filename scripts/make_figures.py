@@ -769,6 +769,95 @@ def make_hematopoiesis_subfigures():
     fig.savefig(fig_dir / "bowside_adj_mat")
     plt.close()
 
+    # Plot KO simulations
+    cluster_labels_ko = np.load("../output/hematopoiesis/cluster_labels_ko.npz")
+    figsize = (7 * INCH_PER_CM, 5.5 * INCH_PER_CM)
+    fig = plt.figure(figsize=figsize, layout="constrained")
+    sub_figs = fig.subfigures(2, 1)
+    alpha = 0.01
+
+    ymaxs = [0.55, 1.2, 1.1, 0.7]
+    yticks = [[0.0, 0.2, 0.4], [0.0, 0.5, 1.0], [0.0, 0.5, 1.0], [0.0, 0.3, 0.6]]
+    axs_top = sub_figs[0].subplots(1, 4)
+    for col, (idx, ax) in enumerate(zip(gene_idx, axs_top.flat)):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Gata1"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Gata1"][
+                    :, cluster_simulations, idx
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
+    sub_figs[0].suptitle("Gata1 knockout")
+
+    axs_bottom = sub_figs[1].subplots(1, 4)
+    for col, (idx, ax) in enumerate(zip(gene_idx, axs_bottom.flat)):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Spi1"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Spi1"][
+                    :, cluster_simulations, idx
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
+    sub_figs[1].suptitle("Spi1 knockout")
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="--", c="k"
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="-", c="k"
+            ),
+        ],
+        labels=["erythroid", "WT trajectories", "myeloid", "KO simulations"],
+        loc="outside lower center",
+        ncol=2,
+        columnspacing=1.0,
+        handlelength=2,
+        borderpad=0.0,
+    )
+    fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
+    fig.savefig(fig_dir / "ko_simulations_Gata1_Spi1")
+
 
 if __name__ == "__main__":
     FIG_DIR.mkdir(parents=True, exist_ok=True)
