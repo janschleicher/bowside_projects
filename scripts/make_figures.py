@@ -14,6 +14,7 @@ from bowside.dataset import (
 )
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
+from matplotlib import ticker
 from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -32,7 +33,7 @@ INCH_PER_CM = 1 / 2.54
 SPLIT_PALETTE = ["#004488", "#DDAA33", "#BB5566"]
 
 # Palette for trajectories: from Paul Tol's muted
-TRAJECTORY_PALETTE = ["#117733", "#AA4499"]
+TRAJECTORY_PALETTE = ["#117733", "#AA4499", "#332288"]
 
 # Palette for cell types, Paul Tol's bright
 CELL_TYPE_PALETTE = [
@@ -890,12 +891,12 @@ def make_ipsc_subfigures():
     ] = adata.obsm["bowside_fate_probabilities"].copy()
 
     # Plot embeddings
-    figsize = (6.0 * INCH_PER_CM, 4.0 * INCH_PER_CM)
+    figsize = (7.0 * INCH_PER_CM, 4.5 * INCH_PER_CM)
     fig, axs = plt.subplots(
         2,
         2,
         figsize=figsize,
-        height_ratios=[3, 2],
+        height_ratios=[3, 1],
         layout="constrained",
         gridspec_kw={"hspace": 0},
     )
@@ -940,26 +941,88 @@ def make_ipsc_subfigures():
         ax=axs[0, 1],
     )
     axs[0, 1].get_legend().remove()
-    cax = inset_axes(
-        axs[1, 1],
-        width="80%",
-        height="10%",
-        loc="center",
-        borderpad=0,
-        bbox_to_anchor=(0.1, 0.25, 0.9, 0.75),
-        bbox_transform=axs[1, 1].transAxes,
-    )
+    cax = axs[1, 1].inset_axes([0.25, 0.4, 0.5, 0.2])
     cbar = plt.colorbar(sm, cax=cax, pad=0.0, orientation="horizontal")
     cax.set_xticks([0, 6, 12, 18])
     cbar.set_label("day", labelpad=0)
-    for ax in axs.flat:
+    for ax in axs[0, :]:
         ax.set_aspect(1.0)
         ax.set_xlabel("")
         ax.set_ylabel("")
         ax.set_xticks([])
         ax.set_yticks([])
     sns.despine(fig, left=True, bottom=True)
+    for ax in axs[1, :]:
+        ax.set_axis_off()
     fig.savefig(fig_dir / "embeddings")
+    plt.close(fig)
+
+    # Plot data and simulations for selected genes
+    dataset = PseudotimeDataset(
+        adata,
+        layer="MAGIC_imputed_data",
+        mask_var="reprogramming_gene",
+        pseudotime_key="day",
+        time_points=sorted(adata.obs["day"].unique()),
+    )
+    train_idx, val_idx, test_idx = split_by_time_point(  # type: ignore
+        dataset, train_proportion=0.78, validation_proportion=0.11, test_proportion=0.11
+    )
+    train_set = PseudotimeTimepointWrapper(dataset, train_idx)
+    val_set = PseudotimeTimepointWrapper(dataset, val_idx)
+    test_set = PseudotimeTimepointWrapper(dataset, test_idx)
+    gene_names = pd.Index(["Nanog", "Tdgf1", "Gata3", "Msx2", "Prrx1", "Csf1"])
+    gene_idx = dataset.gene_names.get_indexer(gene_names)
+    figsize = (10.5 * INCH_PER_CM, 4.5 * INCH_PER_CM)
+    fig, axs = plt.subplots(2, 3, figsize=figsize, sharex=True, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx, axs.flat):
+        for i, (set_name, data_subset) in enumerate(
+            zip(["train", "validation", "test"], [train_set, val_set, test_set])
+        ):
+            y = data_subset[:].cpu()
+            ax.scatter(
+                data_subset.time_points.cpu().repeat(y.shape[0], 1),
+                y[:, :, idx],
+                color=SPLIT_PALETTE[i],
+                linewidth=0,
+                s=3,
+                alpha=alpha,
+                label=set_name,
+                rasterized=True,
+            )
+        ax.plot(
+            dataset.time_points.cpu(),
+            adata.uns["bowside"]["simulations"][:, :, idx],
+            color="k",
+            alpha=alpha,
+            linewidth=0.5,
+            label="simulations",
+            rasterized=True,
+        )
+        ax.set_xlabel("day", labelpad=1.0)
+        ax.set_xticks([0, 6, 12, 18])
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+            ),
+            plt.Line2D([0, 1], [1, 1], linewidth=1.0, c="k"),  # type: ignore
+        ],
+        labels=["train", "validation", "test", "simulation"],
+        loc="outside center right",
+    )
+    fig.get_layout_engine().set(w_pad=0.03, wspace=0.0)  # type: ignore
+    fig.align_ylabels()
+    fig.savefig(fig_dir / "data_and_simulations")
     plt.close(fig)
 
 
