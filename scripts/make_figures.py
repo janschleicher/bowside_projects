@@ -34,6 +34,17 @@ SPLIT_PALETTE = ["#004488", "#DDAA33", "#BB5566"]
 # Palette for trajectories: from Paul Tol's muted
 TRAJECTORY_PALETTE = ["#117733", "#AA4499"]
 
+# Palette for cell types, Paul Tol's bright
+CELL_TYPE_PALETTE = [
+    "#4477AA",
+    "#EE6677",
+    "#228833",
+    "#CCBB44",
+    "#66CCEE",
+    "#AA3377",
+    "#BBBBBB",
+]
+
 
 def make_overview_subfigures():
     fig_dir = FIG_DIR / "method_overview"
@@ -859,7 +870,101 @@ def make_hematopoiesis_subfigures():
     fig.savefig(fig_dir / "ko_simulations_Gata1_Spi1")
 
 
+def make_ipsc_subfigures():
+    fig_dir = FIG_DIR / "ipscs"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load AnnData object
+    adata = sc.read_h5ad(DATA_DIR / "ipscs_bowside.h5ad")
+    embeddings_df = sc.get.obs_df(
+        adata,
+        keys=["cell_set", "day", "bowside_fate_entropy"],
+        obsm_keys=[("X_fle", 0), ("X_fle", 1)],
+    ).rename(columns={"X_fle-0": "FLE1", "X_fle-1": "FLE2"})
+    embeddings_df[
+        [
+            "bowside_stromal_probability",
+            "bowside_ipsc_probability",
+            "bowside_tropho_probability",
+        ]
+    ] = adata.obsm["bowside_fate_probabilities"].copy()
+
+    # Plot embeddings
+    figsize = (6.0 * INCH_PER_CM, 4.0 * INCH_PER_CM)
+    fig, axs = plt.subplots(
+        2,
+        2,
+        figsize=figsize,
+        height_ratios=[3, 2],
+        layout="constrained",
+        gridspec_kw={"hspace": 0},
+    )
+    sns.scatterplot(
+        embeddings_df,
+        x="FLE1",
+        y="FLE2",
+        hue="cell_set",
+        palette=CELL_TYPE_PALETTE,
+        linewidth=0,
+        s=0.25,
+        rasterized=True,
+        ax=axs[0, 0],
+    )
+    handles, labels = axs[0, 0].get_legend_handles_labels()
+    labels = [lab.lower() if lab not in ["IPS", "MEF"] else lab for lab in labels]
+    axs[0, 0].get_legend().remove()
+    axs[1, 0].legend(
+        handles,
+        labels,
+        title="cell type",
+        alignment="left",
+        loc="upper center",
+        ncol=2,
+        columnspacing=1.0,
+        markerscale=4,
+        bbox_to_anchor=(0.5, 1.0),
+    )
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=18.0)
+    )
+    sns.scatterplot(
+        embeddings_df,
+        x="FLE1",
+        y="FLE2",
+        hue="day",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=0.25,
+        rasterized=True,
+        ax=axs[0, 1],
+    )
+    axs[0, 1].get_legend().remove()
+    cax = inset_axes(
+        axs[1, 1],
+        width="80%",
+        height="10%",
+        loc="center",
+        borderpad=0,
+        bbox_to_anchor=(0.1, 0.25, 0.9, 0.75),
+        bbox_transform=axs[1, 1].transAxes,
+    )
+    cbar = plt.colorbar(sm, cax=cax, pad=0.0, orientation="horizontal")
+    cax.set_xticks([0, 6, 12, 18])
+    cbar.set_label("day", labelpad=0)
+    for ax in axs.flat:
+        ax.set_aspect(1.0)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    sns.despine(fig, left=True, bottom=True)
+    fig.savefig(fig_dir / "embeddings")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     make_overview_subfigures()
     make_hematopoiesis_subfigures()
+    make_ipsc_subfigures()
