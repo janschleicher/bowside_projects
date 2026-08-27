@@ -33,7 +33,7 @@ INCH_PER_CM = 1 / 2.54
 SPLIT_PALETTE = ["#004488", "#DDAA33", "#BB5566"]
 
 # Palette for trajectories: from Paul Tol's muted
-TRAJECTORY_PALETTE = ["#117733", "#AA4499", "#332288"]
+TRAJECTORY_PALETTE = ["#117733", "#AA4499", "#88CCEE"]
 
 # Palette for cell types, Paul Tol's bright
 CELL_TYPE_PALETTE = [
@@ -449,15 +449,15 @@ def make_hematopoiesis_subfigures():
     fig.legend(
         handles=[
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
             ),
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
             ),
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
             ),
-            plt.Line2D([0, 1], [1, 1], linewidth=1.0, c="k"),  # type: ignore
+            plt.Line2D([], [], linewidth=1.0, c="k"),  # type: ignore
         ],
         labels=["train", "validation", "test", "simulation"],
         loc="outside lower center",
@@ -498,16 +498,10 @@ def make_hematopoiesis_subfigures():
     fig.legend(
         handles=[
             plt.Line2D(  # type: ignore
-                [0, 1],
-                [1, 1],
-                linewidth=1.0,
-                c=TRAJECTORY_PALETTE[0],
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
             ),
             plt.Line2D(  # type: ignore
-                [0, 1],
-                [1, 1],
-                linewidth=1.0,
-                c=TRAJECTORY_PALETTE[1],
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
             ),
         ],
         labels=["erythroid", "myeloid"],
@@ -971,7 +965,7 @@ def make_ipsc_subfigures():
     train_set = PseudotimeTimepointWrapper(dataset, train_idx)
     val_set = PseudotimeTimepointWrapper(dataset, val_idx)
     test_set = PseudotimeTimepointWrapper(dataset, test_idx)
-    gene_names = pd.Index(["Nanog", "Tdgf1", "Gata3", "Msx2", "Prrx1", "Csf1"])
+    gene_names = pd.Index(["Nanog", "Gata3", "Prrx1", "Tdgf1", "Msx2", "Csf1"])
     gene_idx = dataset.gene_names.get_indexer(gene_names)
     figsize = (10.5 * INCH_PER_CM, 4.5 * INCH_PER_CM)
     fig, axs = plt.subplots(2, 3, figsize=figsize, sharex=True, layout="constrained")
@@ -1004,18 +998,20 @@ def make_ipsc_subfigures():
         ax.set_xticks([0, 6, 12, 18])
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
         ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    for ax, title in zip(axs[0, :], ["iPSC", "trophoblast", "stromal"]):
+        ax.set_title(title, fontsize=5, pad=2)
     fig.legend(
         handles=[
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
             ),
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
             ),
             plt.Line2D(  # type: ignore
-                [0], [0], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
             ),
-            plt.Line2D([0, 1], [1, 1], linewidth=1.0, c="k"),  # type: ignore
+            plt.Line2D([], [], linewidth=1.0, c="k"),  # type: ignore
         ],
         labels=["train", "validation", "test", "simulation"],
         loc="outside center right",
@@ -1024,6 +1020,114 @@ def make_ipsc_subfigures():
     fig.align_ylabels()
     fig.savefig(fig_dir / "data_and_simulations")
     plt.close(fig)
+
+    # Trajectory inference
+    figsize = (10.5 * INCH_PER_CM, 5 * INCH_PER_CM)
+    fig, axs = plt.subplots(2, 3, figsize=figsize, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx, axs.flat):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = (
+                adata.uns["bowside"]["trajectory_inference_clusters"] == i + 1
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations"][:, cluster_simulations, idx],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+            )
+        ax.set_xlabel("day", labelpad=1.0)
+        ax.set_xticks([0, 6, 12, 18])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    for ax, title in zip(axs[0, :], ["ipsc", "trophoblast", "stromal"]):
+        ax.set_title(title, fontsize=5, pad=2)
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[2]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+        ],
+        labels=["ipsc", "trophoblast", "stromal"],
+        loc="outside center right",
+        ncol=1,
+        borderpad=0.0,
+    )
+    fig.savefig(fig_dir / "trajectory_inference_genes")
+
+    figsize = (7 * INCH_PER_CM, 5 * INCH_PER_CM)
+    fig, axs = plt.subplots(2, 2, figsize=figsize, layout="constrained")
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=1.0)
+    )
+    cbar_kwargs = {"location": "right", "shrink": 0.4, "aspect": 8, "pad": 0.0}
+
+    for i, (name, title) in enumerate(
+        zip(["ipsc", "tropho", "stromal"], ["ipsc", "trophoblast", "stromal"])
+    ):
+        ax = axs.flat[i]
+        sns.scatterplot(
+            embeddings_df,
+            x="FLE1",
+            y="FLE2",
+            hue=f"bowside_{name}_probability",
+            hue_norm=sm.norm,
+            palette="viridis_r",
+            linewidth=0,
+            s=0.25,
+            rasterized=True,
+            ax=ax,
+        )
+        ax.set_title(f"{title} fate")
+        cbar = plt.colorbar(sm, ax=ax, **cbar_kwargs)
+        cbar.set_label("probability", labelpad=2)
+        cbar.set_ticks([0, 0.5, 1.0])
+
+    sm = plt.cm.ScalarMappable(
+        cmap="viridis_r", norm=mcolors.Normalize(vmin=0.0, vmax=-np.log(1 / 3))
+    )
+    sns.scatterplot(
+        embeddings_df,
+        x="FLE1",
+        y="FLE2",
+        hue="bowside_fate_entropy",
+        hue_norm=sm.norm,
+        palette="viridis_r",
+        linewidth=0,
+        s=0.25,
+        rasterized=True,
+        ax=axs.flat[-1],
+    )
+    axs.flat[-1].set_title("fate entropy")
+    cbar = plt.colorbar(sm, ax=axs.flat[-1], **cbar_kwargs)
+    cbar.set_label("entropy", labelpad=0)
+    cbar.set_ticks(
+        [0.0, 0.5, -np.log(1 / 3)],
+        labels=[f"{0:.1f}", f"{0.5:.1f}", f"{-np.log(1 / 3):.2f}"],
+    )
+
+    for ax in axs.flat:
+        ax.get_legend().remove()
+        ax.set_aspect(1.0)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+    sns.despine(left=True, bottom=True)
+    fig.savefig(fig_dir / "trajectory_inference_embedding")
 
 
 if __name__ == "__main__":
