@@ -512,6 +512,7 @@ def make_hematopoiesis_subfigures():
     )
     fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
     fig.savefig(fig_dir / "trajectory_inference_genes")
+    plt.close()
 
     figsize = (7 * INCH_PER_CM, 3 * INCH_PER_CM)
     fig, axs = plt.subplots(1, 3, figsize=figsize, layout="constrained")
@@ -583,6 +584,7 @@ def make_hematopoiesis_subfigures():
         ax.set_ylabel("")
     sns.despine(left=True, bottom=True)
     fig.savefig(fig_dir / "trajectory_inference_embedding")
+    plt.close()
 
     # Plot adjacency matrix
     adj_mat = pd.read_csv(
@@ -663,21 +665,21 @@ def make_hematopoiesis_subfigures():
             },
             "edge": {
                 "shrink": 1,
-                "linewidth": 1.0,
+                "linewidth": 0.75,
                 "linestyle": edge_linestyles,
                 "arc": True,
                 "tension": 0.1,
                 "looptension": 3,
                 "color": edge_colors,
                 "arrow_marker": edge_arrowmarkers,
-                "arrow_width": 5,
-                "arrow_height": 5,
+                "arrow_width": 3,
+                "arrow_height": 3,
             },
         },
         aspect=1,
         ax=ax,
     )
-    cax = inset_axes(ax, "3%", "15%", "lower right", borderpad=1.5)
+    cax = ax.inset_axes((0.9, 0.05, 0.03, 0.15), transform=ax.transAxes)
     cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)
     cbar.set_label("weight", labelpad=1.0)
     handles = [
@@ -732,14 +734,14 @@ def make_hematopoiesis_subfigures():
             },
             "edge": {
                 "shrink": 1,
-                "linewidth": 1.0,
+                "linewidth": 0.75,
                 "arc": True,
                 "tension": 0.1,
                 "looptension": 3,
                 "color": edge_colors,
                 "arrow_marker": edge_arrowmarkers,
-                "arrow_width": 5,
-                "arrow_height": 5,
+                "arrow_width": 3,
+                "arrow_height": 3,
             },
         },
         ax=axs[0],
@@ -863,6 +865,7 @@ def make_hematopoiesis_subfigures():
     )
     fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
     fig.savefig(fig_dir / "ko_simulations_Gata1_Spi1")
+    plt.close()
 
 
 def make_ipsc_subfigures():
@@ -906,7 +909,12 @@ def make_ipsc_subfigures():
         ax=axs[0, 0],
     )
     handles, labels = axs[0, 0].get_legend_handles_labels()
-    labels = [lab.lower() if lab not in ["IPS", "MEF"] else lab for lab in labels]
+    labels = [
+        lab.lower()
+        if lab not in ["IPS", "MEF"]
+        else {"IPS": "IPS", "MEF": "MEF/other"}[lab]
+        for lab in labels
+    ]
     axs[0, 0].get_legend().remove()
     axs[1, 0].legend(
         handles,
@@ -916,7 +924,7 @@ def make_ipsc_subfigures():
         loc="upper center",
         ncol=2,
         columnspacing=1.0,
-        markerscale=4,
+        markerscale=6,
         bbox_to_anchor=(0.5, 1.0),
     )
     sm = plt.cm.ScalarMappable(
@@ -949,7 +957,7 @@ def make_ipsc_subfigures():
     for ax in axs[1, :]:
         ax.set_axis_off()
     fig.savefig(fig_dir / "embeddings")
-    plt.close(fig)
+    plt.close()
 
     # Plot data and simulations for selected genes
     dataset = PseudotimeDataset(
@@ -1019,7 +1027,7 @@ def make_ipsc_subfigures():
     fig.get_layout_engine().set(w_pad=0.03, wspace=0.0)  # type: ignore
     fig.align_ylabels()
     fig.savefig(fig_dir / "data_and_simulations")
-    plt.close(fig)
+    plt.close()
 
     # Trajectory inference
     figsize = (10.5 * INCH_PER_CM, 5 * INCH_PER_CM)
@@ -1067,6 +1075,7 @@ def make_ipsc_subfigures():
         borderpad=0.0,
     )
     fig.savefig(fig_dir / "trajectory_inference_genes")
+    plt.close()
 
     figsize = (7 * INCH_PER_CM, 5 * INCH_PER_CM)
     fig, axs = plt.subplots(2, 2, figsize=figsize, layout="constrained")
@@ -1128,6 +1137,113 @@ def make_ipsc_subfigures():
         ax.set_ylabel("")
     sns.despine(left=True, bottom=True)
     fig.savefig(fig_dir / "trajectory_inference_embedding")
+    plt.close(fig)
+
+    # Plot adjacency matrix
+    adj_mat = pd.read_csv("../output/ipscs/ipscs_adj_bowside.csv", index_col=0)
+    grn_bowside = nx.from_pandas_adjacency(adj_mat, create_using=nx.DiGraph)
+
+    # Remove edges below cutoff
+    n_edges = 25  # use top positive and negative edges
+    sorted_weights = np.sort(adj_mat.values, axis=None)
+    pos_cutoff = sorted_weights[-n_edges]
+    neg_cutoff = sorted_weights[n_edges]
+    edges_to_remove = [
+        (u, v)
+        for u, v, d in grn_bowside.edges(data=True)
+        if d["weight"] < pos_cutoff and d["weight"] > neg_cutoff
+    ]
+    grn_bowside.remove_edges_from(edges_to_remove)
+    nodes_to_remove = list(nx.isolates(grn_bowside))
+    grn_bowside.remove_nodes_from(nodes_to_remove)
+    pos = nx.arf_layout(grn_bowside, seed=42)
+
+    # Setup colormap
+    vmax = max(abs(adj_mat.values.min()), adj_mat.values.max())
+    norm = mcolors.Normalize(vmin=-vmax, vmax=vmax)
+    cmap = sns.cm.vlag
+
+    # Style edges
+    edge_colors = {}
+    edge_arrowmarkers = []
+
+    for u, v, d in grn_bowside.edges(data=True):
+        w = d["weight"]
+
+        # Map weight to seaborn colormap
+        edge_colors[(u, v)] = cmap(norm(w))
+
+        # Different arrows for activation and inhibition
+        if w > 0:
+            edge_arrowmarkers.append(")>")  # standard arrow
+        else:
+            edge_arrowmarkers.append("|")  # blunt arrow
+
+    # Plot the graph
+    fig, ax = plt.subplots(
+        figsize=(7.5 * INCH_PER_CM, 9 * INCH_PER_CM), layout="constrained"
+    )
+    ipx.network(
+        grn_bowside,
+        pos,  # type: ignore
+        node_labels=True,
+        style={
+            "node": {
+                "size": 20,
+                "zorder": 2,
+                "facecolor": "lightgrey",
+                "label_color": "k",
+                "label_fontsize": 5,
+                "label_fontfamily": "Arial",
+            },
+            "edge": {
+                "zorder": 1,
+                "shrink": 1,
+                "linewidth": 0.75,
+                "arc": True,
+                "tension": 0.2,
+                "looptension": 3,
+                "color": edge_colors,
+                "arrow_marker": edge_arrowmarkers,
+                "arrow_width": 3,
+                "arrow_height": 3,
+            },
+        },
+        ax=ax,
+    )
+    cax = ax.inset_axes((0.9, 0.05, 0.03, 0.2), transform=ax.transAxes)
+    cbar = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)
+    cbar.set_label("weight", labelpad=1.0)
+
+    sns.despine(fig, left=True, bottom=True)
+    fig.savefig(fig_dir / "bowside_grn_graph")
+    plt.close()
+
+    # Plot adjacency matrix
+    fig, ax = plt.subplots(
+        figsize=(11 * INCH_PER_CM, 9 * INCH_PER_CM), layout="constrained"
+    )
+    annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mat.values)
+    annot[(annot == "0.0") | (annot == "-0.0")] = ""
+    hm = sns.heatmap(
+        adj_mat,
+        cmap="vlag",
+        center=0,
+        cbar_kws={
+            "location": "bottom",
+            "shrink": 0.3,
+            "aspect": 10,
+            "ticks": [-9, -6, -3, 0, 3],
+        },
+        annot=annot,
+        annot_kws={"fontsize": 5},
+        fmt="s",
+        ax=ax,
+    )
+    hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
+    sns.despine(fig, top=False, right=False)
+    fig.savefig(fig_dir / "bowside_adj_mat")
+    plt.close()
 
 
 if __name__ == "__main__":
