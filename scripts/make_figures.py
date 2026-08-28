@@ -1181,7 +1181,7 @@ def make_ipsc_subfigures():
 
     # Plot the graph
     fig, ax = plt.subplots(
-        figsize=(7.5 * INCH_PER_CM, 9 * INCH_PER_CM), layout="constrained"
+        figsize=(6.75 * INCH_PER_CM, 8 * INCH_PER_CM), layout="constrained"
     )
     ipx.network(
         grn_bowside,
@@ -1221,7 +1221,7 @@ def make_ipsc_subfigures():
 
     # Plot adjacency matrix
     fig, ax = plt.subplots(
-        figsize=(11 * INCH_PER_CM, 9 * INCH_PER_CM), layout="constrained"
+        figsize=(10.75 * INCH_PER_CM, 8 * INCH_PER_CM), layout="constrained"
     )
     annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mat.values)
     annot[(annot == "0.0") | (annot == "-0.0")] = ""
@@ -1231,7 +1231,7 @@ def make_ipsc_subfigures():
         center=0,
         cbar_kws={
             "location": "bottom",
-            "shrink": 0.3,
+            "shrink": 0.2,
             "aspect": 10,
             "ticks": [-9, -6, -3, 0, 3],
         },
@@ -1241,6 +1241,8 @@ def make_ipsc_subfigures():
         ax=ax,
     )
     hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
+    ax.set_xlabel("")
+    ax.set_ylabel("")
     sns.despine(fig, top=False, right=False)
     fig.savefig(fig_dir / "bowside_adj_mat")
     plt.close()
