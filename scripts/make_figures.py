@@ -1223,6 +1223,7 @@ def make_ipsc_subfigures():
     fig, ax = plt.subplots(
         figsize=(10.75 * INCH_PER_CM, 8 * INCH_PER_CM), layout="constrained"
     )
+    adj_mat = adj_mat.sort_index(axis=0).sort_index(axis=1)
     annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mat.values)
     annot[(annot == "0.0") | (annot == "-0.0")] = ""
     hm = sns.heatmap(
@@ -1238,6 +1239,8 @@ def make_ipsc_subfigures():
         annot=annot,
         annot_kws={"fontsize": 5},
         fmt="s",
+        xticklabels=True,
+        yticklabels=True,
         ax=ax,
     )
     hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
