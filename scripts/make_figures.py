@@ -514,6 +514,104 @@ def make_hematopoiesis_subfigures():
     fig.savefig(fig_dir / "trajectory_inference_genes")
     plt.close()
 
+    # Plot data, simulations, and trajectories for other genes
+    figsize = (17.6 * INCH_PER_CM, 6 * INCH_PER_CM)
+    fig, axs = plt.subplots(
+        2, 5, figsize=figsize, layout="constrained", sharex=True, sharey="col"
+    )
+    gene_names_supp = pd.Index(["Fli1", "Gata2", "Gfi1", "Irf8", "Stat3"])
+    gene_idx_supp = dataset.gene_names.get_indexer(gene_names_supp)
+    alpha = 0.01
+    for idx, ax in zip(gene_idx_supp, axs[0]):
+        for i, (set_name, data_subset) in enumerate(
+            zip(["train", "validation", "test"], [train_set, val_set, test_set])
+        ):
+            y = data_subset[:].cpu()
+            ax.scatter(
+                data_subset.time_points.cpu().repeat(y.shape[0], 1),
+                y[:, :, idx],
+                color=SPLIT_PALETTE[i],
+                linewidth=0,
+                s=3,
+                alpha=alpha,
+                label=set_name,
+                rasterized=True,
+            )
+        ax.plot(
+            dataset.time_points.cpu(),
+            adata.uns["bowside"]["simulations"][:, :, idx],
+            color="k",
+            alpha=alpha,
+            linewidth=0.5,
+            label="simulations",
+            rasterized=True,
+        )
+        # ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    axs[0, -1].legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+            ),
+            plt.Line2D([], [], linewidth=1.0, c="k"),  # type: ignore
+        ],
+        labels=["train", "validation", "test", "simulation"],
+        loc="center left",
+        bbox_to_anchor=(1.0, 0.5),
+        ncol=1,
+        columnspacing=1.0,
+    )
+
+    for idx, ax in zip(gene_idx_supp, axs[1]):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = (
+                adata.uns["bowside"]["trajectory_inference_clusters"] == i + 1
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations"][:, cluster_simulations, idx],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    axs[1, -1].legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+        ],
+        labels=["erythroid", "myeloid"],
+        loc="center left",
+        bbox_to_anchor=(1.0, 0.5),
+        ncol=1,
+        columnspacing=1.0,
+        borderpad=0.0,
+    )
+    fig.align_ylabels()
+    fig.savefig(fig_dir / "data_simulations_trajectories_supp")
+    plt.close()
+
+    # Plot fate probabilities
     figsize = (7 * INCH_PER_CM, 3 * INCH_PER_CM)
     fig, axs = plt.subplots(1, 3, figsize=figsize, layout="constrained")
     sm = plt.cm.ScalarMappable(
@@ -777,7 +875,7 @@ def make_hematopoiesis_subfigures():
     fig.savefig(fig_dir / "bowside_adj_mat")
     plt.close()
 
-    # Plot KO simulations
+    # Plot KO simulations (Gata1 and Spi1, main genes)
     cluster_labels_ko = np.load("../output/hematopoiesis/cluster_labels_ko.npz")
     figsize = (7 * INCH_PER_CM, 5.5 * INCH_PER_CM)
     fig = plt.figure(figsize=figsize, layout="constrained")
@@ -865,6 +963,243 @@ def make_hematopoiesis_subfigures():
     )
     fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
     fig.savefig(fig_dir / "ko_simulations_Gata1_Spi1")
+    plt.close()
+
+    # Plot KO simulations (Gata1 and Spi1, other genes)
+    figsize = (12 * INCH_PER_CM, 4.5 * INCH_PER_CM)
+    fig = plt.figure(figsize=figsize, layout="constrained")
+    sub_figs = fig.subfigures(2, 1)
+    alpha = 0.01
+
+    ymaxs = [0.45, 1.1, 0.7, 1.1, 0.5]
+    yticks = [
+        [0.0, 0.2, 0.4],
+        [0.0, 0.5, 1.0],
+        [0.0, 0.2, 0.4, 0.6],
+        [0.0, 0.5, 1.0],
+        [0.0, 0.2, 0.4],
+    ]
+    axs_top = sub_figs[0].subplots(1, 5)
+    for col, (idx, ax) in enumerate(zip(gene_idx_supp, axs_top.flat)):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Gata1"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Gata1"][
+                    :, cluster_simulations, idx
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
+    sub_figs[0].suptitle("Gata1 knockout")
+
+    axs_bottom = sub_figs[1].subplots(1, 5)
+    for col, (idx, ax) in enumerate(zip(gene_idx_supp, axs_bottom.flat)):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Spi1"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Spi1"][
+                    :, cluster_simulations, idx
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
+    sub_figs[1].suptitle("Spi1 knockout")
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="--", c="k"
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="-", c="k"
+            ),
+        ],
+        labels=["erythroid", "myeloid", "WT trajectories", "KO simulations"],
+        loc="outside center right",
+        ncol=1,
+        columnspacing=1.0,
+        handlelength=2,
+        borderpad=1.5,
+    )
+    fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
+    fig.savefig(fig_dir / "ko_simulations_Gata1_Spi1_supp")
+    plt.close()
+
+    # Plot KO simulations (Cebpa and Cebpe)
+    figsize = (17.6 * INCH_PER_CM, 5.5 * INCH_PER_CM)
+    fig = plt.figure(figsize=figsize, layout="constrained")
+    sub_figs = fig.subfigures(2, 1)
+    alpha = 0.01
+
+    ymaxs = [0.45, 0.8, 0.35, 1.1, 1.55, 0.65, 1.4, 0.7, 0.5]
+    yticks = [
+        [0.0, 0.2, 0.4],
+        [0.0, 0.3, 0.6],
+        [0.0, 0.1, 0.3],
+        [0.0, 0.5, 1.0],
+        [0.0, 0.5, 1.0, 1.5],
+        [0.0, 0.3, 0.6],
+        [0.0, 0.5, 1.0],
+        [0.0, 0.3, 0.6],
+        [0.0, 0.2, 0.4],
+    ]
+    axs_top = sub_figs[0].subplots(1, 9)
+    for col, ax in enumerate(axs_top.flat):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Cebpa"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Cebpa"][
+                    :, cluster_simulations, col
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, col],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[col], labelpad=1.0)  # type: ignore
+        # ax.set_ylim(None, ymaxs[col])
+        # ax.set_yticks(yticks[col])
+    sub_figs[0].suptitle("Cebpa knockout")
+
+    axs_bottom = sub_figs[1].subplots(1, 9)
+    for col, ax in enumerate(axs_bottom.flat):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = cluster_labels_ko["Cebpe"] == i
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations_ko_Cebpe"][
+                    :, cluster_simulations, col
+                ],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, col],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+                ls="--",
+            )
+        ax.set_xlabel("pseudotime", labelpad=1.0)
+        ax.set_xticks([0.0, 0.5, 1.0])
+        ax.set_ylabel(dataset.gene_names[col], labelpad=1.0)  # type: ignore
+        # ax.set_ylim(None, ymaxs[col])
+        # ax.set_yticks(yticks[col])
+    sub_figs[1].suptitle("Cebpe knockout")
+    fig.legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="--", c="k"
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, linestyle="-", c="k"
+            ),
+        ],
+        labels=["erythroid", "myeloid", "WT trajectories", "KO simulations"],
+        loc="outside lower center",
+        ncol=4,
+        columnspacing=1.0,
+        handlelength=2,
+        borderpad=0.0,
+    )
+    fig.get_layout_engine().set(w_pad=0.0, wspace=0.0, rect=(0.01, 0.01, 0.98, 0.98))  # type: ignore
+    fig.savefig(fig_dir / "ko_simulations_Cebpa_Cebpe_supp")
+    plt.close()
+
+    # Barplot of trajectory frequencies
+    trajectory_labels = pd.DataFrame(
+        np.stack(
+            [adata.uns["bowside"]["trajectory_inference_clusters"] - 1]
+            + [arr for arr in cluster_labels_ko.values()]
+        ).T,
+        columns=["WT"] + [gene for gene in cluster_labels_ko.keys()],
+    ).melt(var_name="KO", value_name="cluster")
+    fig, ax = plt.subplots(
+        figsize=(5 * INCH_PER_CM, 4.5 * INCH_PER_CM), layout="constrained"
+    )
+    percentages = (
+        trajectory_labels.groupby(["KO", "cluster"])
+        .size()
+        .groupby(level=0)
+        .transform(lambda counts: 100 * counts / counts.sum())
+        .reset_index(name="percent")
+    )
+
+    sns.barplot(
+        percentages,
+        x="KO",
+        y="percent",
+        hue="cluster",
+        order=["WT", "Gata1", "Spi1", "Cebpa", "Cebpe"],
+        palette=TRAJECTORY_PALETTE,
+        ax=ax,
+    )
+    ax.set_xlabel("knockout")
+    ax.set_axisbelow(True)
+    ax.grid(axis="y")
+    handles, _ = ax.get_legend_handles_labels()
+    ax.get_legend().remove()  # type: ignore
+    ax.set_title("trajectory frequencies")
+    fig.legend(
+        handles,
+        ["erythroid", "myeloid"],
+        loc="outside lower center",
+        ncol=2,
+    )
+    fig.savefig(fig_dir / "trajectory_counts_supp")
     plt.close()
 
 
