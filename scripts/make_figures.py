@@ -14,7 +14,7 @@ from bowside.dataset import (
 )
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
-from matplotlib import ticker
+from matplotlib import ticker  # noqa
 from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -1066,14 +1066,14 @@ def make_hematopoiesis_subfigures():
     sub_figs = fig.subfigures(2, 1)
     alpha = 0.01
 
-    ymaxs = [0.45, 0.8, 0.35, 1.1, 1.55, 0.65, 1.4, 0.7, 0.5]
+    ymaxs = [0.55, 0.8, 0.35, 1.05, 1.5, 0.65, 1.4, 0.7, 0.5]
     yticks = [
         [0.0, 0.2, 0.4],
         [0.0, 0.3, 0.6],
-        [0.0, 0.1, 0.3],
+        [0.0, 0.1, 0.2, 0.3],
         [0.0, 0.5, 1.0],
-        [0.0, 0.5, 1.0, 1.5],
-        [0.0, 0.3, 0.6],
+        [0.0, 0.5, 1.0],
+        [0.0, 0.2, 0.4, 0.6],
         [0.0, 0.5, 1.0],
         [0.0, 0.3, 0.6],
         [0.0, 0.2, 0.4],
@@ -1102,8 +1102,8 @@ def make_hematopoiesis_subfigures():
         ax.set_xlabel("pseudotime", labelpad=1.0)
         ax.set_xticks([0.0, 0.5, 1.0])
         ax.set_ylabel(dataset.gene_names[col], labelpad=1.0)  # type: ignore
-        # ax.set_ylim(None, ymaxs[col])
-        # ax.set_yticks(yticks[col])
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
     sub_figs[0].suptitle("Cebpa knockout")
 
     axs_bottom = sub_figs[1].subplots(1, 9)
@@ -1130,8 +1130,8 @@ def make_hematopoiesis_subfigures():
         ax.set_xlabel("pseudotime", labelpad=1.0)
         ax.set_xticks([0.0, 0.5, 1.0])
         ax.set_ylabel(dataset.gene_names[col], labelpad=1.0)  # type: ignore
-        # ax.set_ylim(None, ymaxs[col])
-        # ax.set_yticks(yticks[col])
+        ax.set_ylim(None, ymaxs[col])
+        ax.set_yticks(yticks[col])
     sub_figs[1].suptitle("Cebpe knockout")
     fig.legend(
         handles=[
@@ -1364,6 +1364,63 @@ def make_ipsc_subfigures():
     fig.savefig(fig_dir / "data_and_simulations")
     plt.close()
 
+    # Plot data and simulations for all other genes
+    gene_names_other = pd.Index(
+        sorted([g for g in dataset.gene_names if g not in gene_names])
+    )
+    gene_idx_other = dataset.gene_names.get_indexer(gene_names_other)
+    figsize = (17.6 * INCH_PER_CM, 8.2 * INCH_PER_CM)
+    fig, axs = plt.subplots(4, 6, figsize=figsize, sharex=True, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx_other, axs.flat):
+        for i, (set_name, data_subset) in enumerate(
+            zip(["train", "validation", "test"], [train_set, val_set, test_set])
+        ):
+            y = data_subset[:].cpu()
+            ax.scatter(
+                data_subset.time_points.cpu().repeat(y.shape[0], 1),
+                y[:, :, idx],
+                color=SPLIT_PALETTE[i],
+                linewidth=0,
+                s=3,
+                alpha=alpha,
+                label=set_name,
+                rasterized=True,
+            )
+        ax.plot(
+            dataset.time_points.cpu(),
+            adata.uns["bowside"]["simulations"][:, :, idx],
+            color="k",
+            alpha=alpha,
+            linewidth=0.5,
+            label="simulations",
+            rasterized=True,
+        )
+        ax.set_xlabel("day", labelpad=1.0)
+        ax.set_xticks([0, 6, 12, 18])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    axs.flat[-1].set_axis_off()
+    axs.flat[-1].legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[0]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=0, marker="o", markersize=2, c=SPLIT_PALETTE[2]
+            ),
+            plt.Line2D([], [], linewidth=1.0, c="k"),  # type: ignore
+        ],
+        labels=["train", "validation", "test", "simulation"],
+        loc="center",
+    )
+    fig.get_layout_engine().set(w_pad=0.03, wspace=0.0)  # type: ignore
+    fig.align_ylabels()
+    fig.savefig(fig_dir / "data_and_simulations_supp")
+    plt.close()
+
     # Trajectory inference
     figsize = (10.5 * INCH_PER_CM, 5 * INCH_PER_CM)
     fig, axs = plt.subplots(2, 3, figsize=figsize, layout="constrained")
@@ -1410,6 +1467,51 @@ def make_ipsc_subfigures():
         borderpad=0.0,
     )
     fig.savefig(fig_dir / "trajectory_inference_genes")
+    plt.close()
+
+    # Trajectory inference for other genes
+    figsize = (17.6 * INCH_PER_CM, 8.2 * INCH_PER_CM)
+    fig, axs = plt.subplots(4, 6, figsize=figsize, layout="constrained")
+    alpha = 0.01
+    for idx, ax in zip(gene_idx_other, axs.flat):
+        for i in range(adata.uns["bowside"]["trajectories"].shape[0]):
+            cluster_simulations = (
+                adata.uns["bowside"]["trajectory_inference_clusters"] == i + 1
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["simulations"][:, cluster_simulations, idx],
+                color=TRAJECTORY_PALETTE[i],
+                alpha=alpha,
+                linewidth=0.5,
+                rasterized=True,
+            )
+            ax.plot(
+                dataset.time_points.cpu(),
+                adata.uns["bowside"]["trajectories"][i, :, idx],
+                c=TRAJECTORY_PALETTE[i],
+                lw=0.5,
+            )
+        ax.set_xlabel("day", labelpad=1.0)
+        ax.set_xticks([0, 6, 12, 18])
+        ax.set_ylabel(dataset.gene_names[idx], labelpad=1.0)  # type: ignore
+    axs.flat[-1].set_axis_off()
+    axs.flat[-1].legend(
+        handles=[
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[1]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[2]
+            ),
+            plt.Line2D(  # type: ignore
+                [], [], linewidth=1.0, c=TRAJECTORY_PALETTE[0]
+            ),
+        ],
+        labels=["ipsc", "trophoblast", "stromal"],
+        loc="center",
+    )
+    fig.savefig(fig_dir / "trajectory_inference_genes_supp")
     plt.close()
 
     figsize = (7 * INCH_PER_CM, 5 * INCH_PER_CM)
