@@ -1,0 +1,13 @@
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Logger setup complete for fitting model 3
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Saving final model state to directory ../output/BEELINE_HSC/bowside_optimized/model_3.
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Using model of type GRNModelSDE
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Running on device 'cuda'
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Indices of test time points (not used here, use externally to test interpolation performance): tensor([ 7,  8,  9, 10])
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Indices of training time points: tensor([ 0,  1,  2,  3,  4,  5,  6, 11, 12, 13, 14, 15, 16, 17])
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Indices of validation time points: tensor([18, 19])
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Batch size train: 200; batch size test: 200
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Number of training batches: 1; number of test batches: 1
+[2026-10-01 09:55:27][model_3_fitting][INFO] - Starting GRN model training.
+[2026-10-01 10:02:27][model_3_fitting][INFO] - Early stopping triggered.
+[2026-10-01 10:02:27][model_3_fitting][INFO] - Finished model training.
+[2026-10-01 10:02:27][model_3_fitting][INFO] - Final pruning step of edges with weight close to 0.
