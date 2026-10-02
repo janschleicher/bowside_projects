@@ -1,0 +1,13 @@
+name: bowside
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - ipykernel
+  - ipywidgets
+  - pyarrow
+  - pip:
+    - iplotx

@@ -1,0 +1,14 @@
+name: palantir
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - palantir
+  - ipykernel
+  - ipywidgets
+  - cellrank
+  - pip:
+    - scikit-misc
