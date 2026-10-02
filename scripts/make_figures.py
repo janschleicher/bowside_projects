@@ -1688,8 +1688,63 @@ def make_ipsc_subfigures():
     plt.close()
 
 
+def make_grn_benchmark_subfigures():
+    fig_dir = FIG_DIR / "benchmark"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    benchmark_results = pd.read_parquet(
+        "../output/BEELINE_grn_benchmark_results.parquet"
+    )
+
+    fig, axs = plt.subplots(
+        1, 3, figsize=(17.6 * INCH_PER_CM, 5.1 * INCH_PER_CM), layout="constrained"
+    )
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="auroc",
+        hue="method",
+        errorbar="sd",
+        palette="Dark2",
+        ax=axs[0],
+    )
+    axs[0].set_title("area under the ROC curve")
+    axs[0].set_ylabel("AUROC")
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="average_precision",
+        hue="method",
+        errorbar="sd",
+        palette="Dark2",
+        ax=axs[1],
+    )
+    axs[1].set_title("average precision")
+    axs[1].set_ylabel("AP")
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="early_precision",
+        hue="method",
+        errorbar="sd",
+        palette="Dark2",
+        ax=axs[2],
+    )
+    axs[2].set_title("early precision")
+    axs[2].set_ylabel("EP")
+
+    handles, labels = axs[0].get_legend_handles_labels()
+    for ax in axs:
+        ax.set_xlabel("dataset")
+        ax.get_legend().remove()
+        ax.set_ylim(0, None)
+    fig.legend(handles, labels, loc="outside lower center", ncol=4, frameon=False)
+    fig.savefig(fig_dir / "grn_metrics")
+
+
 if __name__ == "__main__":
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     make_overview_subfigures()
     make_hematopoiesis_subfigures()
     make_ipsc_subfigures()
+    make_grn_benchmark_subfigures()
