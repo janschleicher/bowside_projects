@@ -46,6 +46,17 @@ CELL_TYPE_PALETTE = [
     "#BBBBBB",
 ]
 
+# Pallette for benchmarks, Paul Tol's vibrant
+BENCHMARK_PALETTE = {
+    "bowside": "#009988",
+    "GRNBoost2": "#EE3377",
+    "GENIE3": "#EE7733",
+    "Palantir": "#CC3311",
+    "CellRank-Connectivity": "#0077BB",
+    "CellRank-Pseudotime": "#33BBEE",
+    "random": "#BBBBBB",
+}
+
 
 def make_overview_subfigures():
     fig_dir = FIG_DIR / "method_overview"
@@ -1695,6 +1706,7 @@ def make_grn_benchmark_subfigures():
     benchmark_results = pd.read_parquet(
         "../output/BEELINE_grn_benchmark_results.parquet"
     )
+    hue_order = ["bowside", "GRNBoost2", "GENIE3", "random"]
 
     fig, axs = plt.subplots(
         1, 3, figsize=(17.6 * INCH_PER_CM, 5.1 * INCH_PER_CM), layout="constrained"
@@ -1704,8 +1716,9 @@ def make_grn_benchmark_subfigures():
         x="dataset",
         y="auroc",
         hue="method",
+        hue_order=hue_order,
         errorbar="sd",
-        palette="Dark2",
+        palette=BENCHMARK_PALETTE,
         ax=axs[0],
     )
     axs[0].set_title("area under the ROC curve")
@@ -1715,8 +1728,9 @@ def make_grn_benchmark_subfigures():
         x="dataset",
         y="average_precision",
         hue="method",
+        hue_order=hue_order,
         errorbar="sd",
-        palette="Dark2",
+        palette=BENCHMARK_PALETTE,
         ax=axs[1],
     )
     axs[1].set_title("average precision")
@@ -1726,8 +1740,9 @@ def make_grn_benchmark_subfigures():
         x="dataset",
         y="early_precision",
         hue="method",
+        hue_order=hue_order,
         errorbar="sd",
-        palette="Dark2",
+        palette=BENCHMARK_PALETTE,
         ax=axs[2],
     )
     axs[2].set_title("early precision")
@@ -1738,8 +1753,106 @@ def make_grn_benchmark_subfigures():
         ax.set_xlabel("dataset")
         ax.get_legend().remove()
         ax.set_ylim(0, None)
-    fig.legend(handles, labels, loc="outside lower center", ncol=4, frameon=False)
+    fig.legend(handles, labels, loc="outside lower center", ncol=4, handlelength=2)
     fig.savefig(fig_dir / "grn_metrics")
+
+
+def make_trajectory_benchmark_subfigures():
+    fig_dir = FIG_DIR / "benchmark"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    benchmark_results = pd.read_parquet(
+        "../output/BEELINE_trajectory_benchmark_results.parquet"
+    )
+    hue_order = [
+        "bowside",
+        "Palantir",
+        "CellRank-Connectivity",
+        "CellRank-Pseudotime",
+        "random",
+    ]
+
+    fig, axs = plt.subplots(
+        2, 3, figsize=(17.6 * INCH_PER_CM, 10.0 * INCH_PER_CM), layout="constrained"
+    )
+
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="balanced_accuracy",
+        hue="method",
+        hue_order=hue_order,
+        errorbar="sd",
+        palette=BENCHMARK_PALETTE,
+        ax=axs.flat[0],
+    )
+    axs.flat[0].set_title("balanced accuracy")
+    axs.flat[0].set_ylabel("balanced accuracy")
+
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="F1",
+        hue="method",
+        hue_order=hue_order,
+        errorbar="sd",
+        palette=BENCHMARK_PALETTE,
+        ax=axs.flat[1],
+    )
+    axs.flat[1].set_title("F1 score (macro)")
+    axs.flat[1].set_ylabel("F1")
+
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="mean_AUROC",
+        hue="method",
+        hue_order=hue_order,
+        errorbar="sd",
+        palette=BENCHMARK_PALETTE,
+        ax=axs.flat[2],
+    )
+    axs.flat[2].set_title("area under the ROC curve (1 vs. rest, macro)")
+    axs.flat[2].set_ylabel("AUROC")
+
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="ARI",
+        hue="method",
+        hue_order=hue_order,
+        errorbar="sd",
+        palette=BENCHMARK_PALETTE,
+        ax=axs.flat[3],
+    )
+    axs.flat[3].set_title("adjusted Rand index")
+    axs.flat[3].set_ylabel("ARI")
+
+    sns.barplot(
+        benchmark_results,
+        x="dataset",
+        y="AMI",
+        hue="method",
+        hue_order=hue_order,
+        errorbar="sd",
+        palette=BENCHMARK_PALETTE,
+        ax=axs.flat[4],
+    )
+    axs.flat[4].set_title("adjusted mutual information")
+    axs.flat[4].set_ylabel("AMI")
+
+    handles, labels = axs.flat[0].get_legend_handles_labels()
+    labels = [
+        lab if not lab.startswith("CellRank") else lab.replace("-", " (") + ")"
+        for lab in labels
+    ]
+    for ax in axs.flat[:-1]:
+        ax.set_xlabel("dataset")
+        ax.get_legend().remove()
+        ax.set_ylim(0, None)
+    axs.flat[-1].set_axis_off()
+    axs.flat[-1].legend(handles, labels, loc="center", ncol=1, handlelength=2)
+    fig.savefig(fig_dir / "trajectory_metrics")
 
 
 if __name__ == "__main__":
@@ -1748,3 +1861,4 @@ if __name__ == "__main__":
     make_hematopoiesis_subfigures()
     make_ipsc_subfigures()
     make_grn_benchmark_subfigures()
+    make_trajectory_benchmark_subfigures()
