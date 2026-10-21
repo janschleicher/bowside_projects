@@ -1986,7 +1986,7 @@ def make_adjacency_matrix_stability_subfigures():
         {
             "dataset": ["hematopoiesis"]
             * ((n_runs_hematopoiesis**2 - n_runs_hematopoiesis) // 2)
-            + ["iPSCs"] * ((n_runs_ipscs**2 - n_runs_ipscs) // 2),
+            + ["reprogramming"] * ((n_runs_ipscs**2 - n_runs_ipscs) // 2),
             "correlation": np.hstack(
                 [
                     correlation_matrix_hematopoiesis[
