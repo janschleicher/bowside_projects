@@ -13,8 +13,11 @@ from bowside.dataset import (
     split_by_time_point,
 )
 from matplotlib import colors as mcolors
+from matplotlib import (
+    patches,
+    ticker,  # noqa
+)
 from matplotlib import pyplot as plt
-from matplotlib import ticker  # noqa
 from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -1757,6 +1760,266 @@ def make_grn_benchmark_subfigures():
     fig.savefig(fig_dir / "grn_metrics")
 
 
+def make_adjacency_matrix_stability_subfigures():
+    fig_dir = FIG_DIR / "stability"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load the results for hematopoiesis
+    adj_mean_hematopoiesis = pd.read_parquet("../output/hematopoiesis/adj_mean.parquet")
+    adj_sd_hematopoiesis = pd.read_parquet("../output/hematopoiesis/adj_sd.parquet")
+    adj_p_adj_hematopoiesis = pd.read_parquet(
+        "../output/hematopoiesis/adj_p_adj.parquet"
+    )
+
+    fig, axs = plt.subplots(
+        3,
+        1,
+        figsize=(4.5 * INCH_PER_CM, 13.5 * INCH_PER_CM),
+        layout="constrained",
+        sharex=True,
+        sharey=True,
+    )
+
+    # Plot adjacency matrix mean
+    annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mean_hematopoiesis.values)
+    annot[(annot == "0.0") | (annot == "-0.0")] = ""
+    hm = sns.heatmap(
+        adj_mean_hematopoiesis,
+        cmap="vlag",
+        center=0,
+        cbar_kws={
+            "location": "bottom",
+            "shrink": 0.4,
+            "aspect": 8,
+            "ticks": [-6, -3, 0, 3],
+        },
+        annot=annot,
+        annot_kws={"fontsize": 5},
+        fmt="s",
+        square=False,
+        ax=axs[0],
+    )
+    hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
+
+    # Plot adjacency matrix standard deviation
+    hm = sns.heatmap(
+        adj_sd_hematopoiesis,
+        cmap="rocket_r",
+        vmin=0,
+        cbar_kws={
+            "location": "bottom",
+            "shrink": 0.4,
+            "aspect": 8,
+            "ticks": [0.0, 0.25, 0.5],
+        },
+        annot=False,
+        fmt="s",
+        square=False,
+        ax=axs[1],
+    )
+    hm.collections[0].colorbar.set_label("std. dev.", labelpad=1.5)  # type: ignore
+
+    # Categorize p_adj: 0 = p >= 0.1, 1 = 0.05 <= p < 0.1, 2 = p < 0.05
+    p_bins = [0.01, 0.05]
+    p_adj_categories = pd.DataFrame(
+        len(p_bins) - np.digitize(adj_p_adj_hematopoiesis.values, p_bins),
+        index=adj_p_adj_hematopoiesis.index,
+        columns=adj_p_adj_hematopoiesis.columns,
+    )
+    category_labels = [
+        f"$\\geq {p_bins[1]:.1g}$",
+        f"$< {p_bins[1]:.1g}$",
+        f"$< {p_bins[0]:.1g}$",
+    ]
+    category_colors = ["w", "gray", "k"]
+    cmap = mcolors.ListedColormap(category_colors)
+
+    sns.heatmap(
+        p_adj_categories,
+        cmap=cmap,
+        cbar=False,
+        xticklabels=True,
+        yticklabels=True,
+        square=False,
+        ax=axs[2],
+    )
+    # Legend with most significant category on top
+    handles = [
+        patches.Patch(facecolor=color, edgecolor="k")  # type: ignore
+        for color in category_colors
+    ]
+    axs[2].legend(
+        handles[::-1],
+        category_labels[::-1],
+        title=r"$p_{adj}$",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.2),
+        ncol=3,
+        handlelength=1,
+        handleheight=1,
+    )
+    sns.despine(fig, top=False, right=False)
+
+    fig.savefig(fig_dir / "adj_matrices_hematopoiesis")
+    plt.close()
+
+    # Load the results for iPSCs
+    adj_mean_ipscs = (
+        pd.read_parquet("../output/ipscs/adj_mean.parquet")
+        .sort_index(axis=0)
+        .sort_index(axis=1)
+    )
+    adj_sd_ipscs = (
+        pd.read_parquet("../output/ipscs/adj_sd.parquet")
+        .sort_index(axis=0)
+        .sort_index(axis=1)
+    )
+    adj_p_adj_ipscs = (
+        pd.read_parquet("../output/ipscs/adj_p_adj.parquet")
+        .sort_index(axis=0)
+        .sort_index(axis=1)
+    )
+
+    fig, axs = plt.subplots(
+        3,
+        1,
+        figsize=(12.5 * INCH_PER_CM, 16.75 * INCH_PER_CM),
+        layout="constrained",
+        sharex=True,
+        sharey=True,
+    )
+
+    # Plot adjacency matrix mean
+    annot = np.vectorize(lambda x: f"{x:.1f}")(adj_mean_ipscs.values)
+    annot[(annot == "0.0") | (annot == "-0.0")] = ""
+    hm = sns.heatmap(
+        adj_mean_ipscs,
+        cmap="vlag",
+        center=0,
+        cbar_kws={
+            "location": "bottom",
+            "shrink": 0.1,
+            "aspect": 10,
+            "ticks": [-6, -3, 0, 3],
+        },
+        annot=annot,
+        annot_kws={"fontsize": 4},
+        fmt="s",
+        square=False,
+        ax=axs[0],
+    )
+    hm.collections[0].colorbar.set_label("weight", labelpad=1.5)  # type: ignore
+
+    # Plot adjacency matrix standard deviation
+    hm = sns.heatmap(
+        adj_sd_ipscs,
+        cmap="rocket_r",
+        vmin=0,
+        cbar_kws={
+            "location": "bottom",
+            "shrink": 0.1,
+            "aspect": 10,
+            "ticks": [0.0, 1.0, 2.0],
+        },
+        annot=False,
+        fmt="s",
+        square=False,
+        ax=axs[1],
+    )
+    hm.collections[0].colorbar.set_label("std. dev.", labelpad=1.5)  # type: ignore
+
+    # Categorize p_adj: 0 = p >= 0.1, 1 = 0.05 <= p < 0.1, 2 = p < 0.05
+    p_bins = [0.01, 0.05]
+    p_adj_categories = pd.DataFrame(
+        len(p_bins) - np.digitize(adj_p_adj_ipscs.values, p_bins),
+        index=adj_p_adj_ipscs.index,
+        columns=adj_p_adj_ipscs.columns,
+    )
+    category_labels = [
+        f"$\\geq {p_bins[1]:.1g}$",
+        f"$< {p_bins[1]:.1g}$",
+        f"$< {p_bins[0]:.1g}$",
+    ]
+    category_colors = ["w", "gray", "k"]
+    cmap = mcolors.ListedColormap(category_colors)
+
+    sns.heatmap(
+        p_adj_categories,
+        cmap=cmap,
+        cbar=False,
+        xticklabels=True,
+        yticklabels=True,
+        square=False,
+        ax=axs[2],
+    )
+    # Legend with most significant category on top
+    handles = [
+        patches.Patch(facecolor=color, edgecolor="k")  # type: ignore
+        for color in category_colors
+    ]
+    axs[2].legend(
+        handles[::-1],
+        category_labels[::-1],
+        title=r"$p_{adj}$",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=3,
+        handlelength=1,
+        handleheight=1,
+    )
+    for ax in axs:
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+    sns.despine(fig, top=False, right=False)
+
+    fig.savefig(fig_dir / "adj_matrices_ipscs")
+    plt.close()
+
+    # Load pairwise correlation results
+    correlation_matrix_hematopoiesis = np.load(
+        "../output/hematopoiesis/adj_pairwise_corr.npy"
+    )
+    n_runs_hematopoiesis = correlation_matrix_hematopoiesis.shape[0]
+    correlation_matrix_ipscs = np.load("../output/ipscs/adj_pairwise_corr.npy")
+    n_runs_ipscs = correlation_matrix_ipscs.shape[0]
+    corr_df = pd.DataFrame(
+        {
+            "dataset": ["hematopoiesis"]
+            * ((n_runs_hematopoiesis**2 - n_runs_hematopoiesis) // 2)
+            + ["iPSCs"] * ((n_runs_ipscs**2 - n_runs_ipscs) // 2),
+            "correlation": np.hstack(
+                [
+                    correlation_matrix_hematopoiesis[
+                        np.tril_indices(n_runs_hematopoiesis, k=-1)
+                    ],
+                    correlation_matrix_ipscs[np.tril_indices(n_runs_ipscs, k=-1)],
+                ]
+            ),
+        }
+    )
+    fig, ax = plt.subplots(
+        figsize=(4.5 * INCH_PER_CM, 2.5 * INCH_PER_CM), layout="constrained"
+    )
+    sns.boxplot(
+        corr_df,
+        y="dataset",
+        x="correlation",
+        color="lightgray",
+        showfliers=False,
+        linewidth=0.5,
+        linecolor="k",
+        ax=ax,
+    )
+    sns.stripplot(
+        corr_df, y="dataset", x="correlation", dodge=True, ax=ax, size=1, color="k"
+    )
+    ax.set_title("weight correlation across runs", fontsize=5)
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Spearman's $\\rho$")
+    ax.set_ylabel("")
+    fig.savefig(fig_dir / "weight_rank_correlation")
+
+
 def make_trajectory_benchmark_subfigures():
     fig_dir = FIG_DIR / "benchmark"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -1861,4 +2124,5 @@ if __name__ == "__main__":
     make_hematopoiesis_subfigures()
     make_ipsc_subfigures()
     make_grn_benchmark_subfigures()
+    make_adjacency_matrix_stability_subfigures()
     make_trajectory_benchmark_subfigures()
