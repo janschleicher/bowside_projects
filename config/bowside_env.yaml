@@ -11,3 +11,4 @@ dependencies:
   - pyarrow
   - pip:
     - iplotx
+    - bowside==0.1.0
